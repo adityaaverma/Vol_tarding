@@ -1,0 +1,79 @@
+volatility-trading-system/
+│
+├── README.md
+├── requirements.txt
+├── pyproject.toml              # optional (formatting, linting)
+├── .gitignore
+├── LICENSE
+│
+├── data/                       # raw + processed data
+│   ├── raw/
+│   │   ├── spot/
+│   │   └── options/
+│   ├── processed/
+│   └── loaders.py              # data loading utilities
+│
+├── bs/                         # Black-Scholes core (BACKBONE)
+│   ├── __init__.py
+│   ├── pricing.py              # BS price
+│   ├── greeks.py               # delta, gamma, vega
+│   ├── implied_vol.py          # IV solver
+│   └── utils.py
+│
+├── vol/                        # volatility logic
+│   ├── __init__.py
+│   ├── realized_vol.py         # RV estimators
+│   ├── iv_surface.py           # IV surface construction
+│   ├── interpolation.py        # surface interpolation
+│   └── metrics.py              # vol comparisons (IV-RV spread)
+│
+├── strategy/                   # trading logic
+│   ├── __init__.py
+│   ├── signal.py               # IV vs RV signal
+│   ├── position.py             # straddle builder
+│   ├── sizing.py               # position sizing logic
+│   └── rules.py                # entry/exit rules
+│
+├── execution/                  # market simulation
+│   ├── __init__.py
+│   ├── delta_hedge.py          # delta hedging engine
+│   ├── transaction_costs.py    # cost model
+│   └── fills.py                # execution assumptions
+│
+├── backtest/                   # simulation engine
+│   ├── __init__.py
+│   ├── engine.py               # main loop
+│   ├── portfolio.py            # positions + cash
+│   └── performance.py          # metrics (Sharpe, DD, etc.)
+│
+├── analytics/                  # results analysis
+│   ├── __init__.py
+│   ├── pnl_attribution.py
+│   ├── risk_metrics.py
+│   └── regime_analysis.py
+│
+├── visualization/              # Plotly graphs
+│   ├── __init__.py
+│   ├── plots.py                # reusable Plotly functions
+│   └── dashboards.py           # optional
+│
+├── notebooks/                  # DEMO (VERY IMPORTANT)
+│   ├── 01_bs_intuition.ipynb
+│   ├── 02_iv_vs_rv.ipynb
+│   ├── 03_strategy_demo.ipynb
+│   └── 04_full_backtest.ipynb
+│
+├── config/                     # parameters
+│   ├── default.yaml
+│   └── strategy.yaml
+│
+├── tests/                      # unit tests
+│   ├── test_bs.py
+│   ├── test_vol.py
+│   └── test_strategy.py
+│
+├── scripts/                    # run scripts
+│   ├── run_backtest.py
+│   └── build_iv_surface.py
+│
+└── logs/                       # optional logs
