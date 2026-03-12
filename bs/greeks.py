@@ -41,12 +41,12 @@ def vega(S:float,K:float,T:float,r:float,sigma:float)->float:
     return np.where(invalid,0.0,vega_val)
 
 
-S = [100,40,30]
-K = 1
-T = 1
-r = 0.05
-sigma = 0.2
+# S = [100,40,30]
+# K = 1
+# T = 1
+# r = 0.05
+# sigma = 0.2
 
-print(delta(S,K,T,r,sigma))
-print(gamma(S,K,T,r,sigma))
-print(vega(S,K,T,r,sigma))
+# print(delta(S,K,T,r,sigma))
+# print(gamma(S,K,T,r,sigma))
+# print(vega(S,K,T,r,sigma))

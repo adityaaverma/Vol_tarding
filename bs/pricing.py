@@ -64,7 +64,7 @@ def _d1_d2_calculate(S:float,K:float,T:float,r:float,sigma:float)->tuple[float,f
 
     return d1,d2
 
-print(bs_price([100,20,101], 100, 1, 0.05, 0.2,"put"))
+# print(bs_price([100,20,101], 100, 1, 0.05, 0.2,"put"))
 
 
 
