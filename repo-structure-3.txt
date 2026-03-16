@@ -1,0 +1,393 @@
+quant-trading-system/
+
+README.md
+(requirements, system overview, architecture diagram, reproducible commands)
+
+requirements.txt
+(exact library versions for deterministic runs)
+
+pyproject.toml
+(build config + lint + formatting)
+
+LICENSE
+
+.gitignore
+
+config/
+    trading_config.yaml
+    (risk limits, position size, max inventory, volatility thresholds)
+
+    market_maker_config.yaml
+    (spread parameters, inventory penalty coefficient, quote frequency)
+
+    simulation_config.yaml
+    (market regime configs, tick frequency, latency simulation)
+
+data/
+
+    raw/
+        spot/
+        (underlying asset tick data)
+
+        options/
+        (options chain snapshots)
+
+    processed/
+        (cleaned tick data, resampled datasets)
+
+    market_snapshots/
+        (LOB snapshots for replay backtests)
+
+bs/
+
+    pricing.py
+    (Black-Scholes pricing
+     vectorized implementation
+     call/put support
+     numerical stability checks)
+
+    greeks.py
+    (delta, gamma, vega, theta, rho
+     vectorized computation
+     analytic formulas)
+
+    implied_vol.py
+    (Newton-Raphson solver
+     bisection fallback
+     convergence tolerance handling)
+
+    utils.py
+    (normal distribution utilities
+     discount factor helpers)
+
+vol/
+
+    realized_vol.py
+    (rolling realized volatility
+     Garman-Klass estimator
+     Parkinson estimator)
+
+    iv_surface.py
+    (IV surface grid generation
+     strike-maturity surface
+     caching surface updates)
+
+    interpolation.py
+    (SABR-style interpolation
+     spline interpolation
+     extrapolation handling)
+
+    vol_metrics.py
+    (smile skew
+     term structure slope
+     volatility clustering metrics)
+
+strategy/
+
+    vol_signal_engine.py
+    (IV vs realized vol signal
+     volatility mean reversion
+     skew mispricing detection)
+
+    vol_arbitrage_strategy.py
+    (long/short volatility trades
+     options spread construction
+     signal threshold triggers)
+
+    position_manager.py
+    (position sizing rules
+     max exposure control
+     capital allocation)
+
+    risk_controls.py
+    (stop-loss logic
+     volatility spike protection
+     max drawdown control)
+
+market_microstructure/
+
+    microprice.py
+    (microprice calculation
+     weighted mid-price estimation)
+
+    imbalance.py
+    (bid/ask volume imbalance
+     order flow imbalance indicator)
+
+    order_flow_features.py
+    (trade intensity
+     order arrival rate
+     liquidity pressure indicators)
+
+    spread_metrics.py
+    (bid-ask spread
+     spread volatility
+     spread widening detection)
+
+market_maker/
+
+    strategy.py
+    (core market making loop
+     quote update scheduling
+     event driven execution)
+
+    quoting_model.py
+    (Avellaneda-Stoikov model
+     optimal spread calculation
+     volatility-adjusted quoting)
+
+    inventory_manager.py
+    (inventory penalty adjustment
+     position skewing of quotes)
+
+    risk_manager.py
+    (max inventory limit
+     dynamic spread widening under risk)
+
+    hedge_engine.py
+    (delta hedging using underlying
+     gamma risk monitoring)
+
+    adapters/
+
+        lob_adapter.py
+        (convert strategy orders into LOB orders)
+
+        vol_adapter.py
+        (query IV surface for fair option price)
+
+core_cpp/
+
+    CMakeLists.txt
+    (build config for C++ matching engine)
+
+    include/
+
+        order.hpp
+        (order structure
+         order id, side, price, quantity, timestamp)
+
+        price_level.hpp
+        (price level container
+         FIFO order queue)
+
+        order_book.hpp
+        (bid/ask ladders
+         best bid/ask retrieval)
+
+        matching_engine.hpp
+        (limit order matching
+         market order handling)
+
+        execution_engine.hpp
+        (order placement
+         cancellation handling)
+
+        trade.hpp
+        (trade event structure)
+
+    src/
+
+        order.cpp
+        (order initialization + validation)
+
+        price_level.cpp
+        (FIFO queue operations)
+
+        order_book.cpp
+        (bid/ask tree updates
+         order insertion + deletion)
+
+        matching_engine.cpp
+        (price-time priority matching
+         trade generation)
+
+        execution_engine.cpp
+        (order lifecycle management)
+
+        latency_timer.cpp
+        (microsecond latency profiling)
+
+    bindings/
+
+        pybind_interface.cpp
+        (expose LOB to Python
+         place_order()
+         cancel_order()
+         get_snapshot())
+
+    tests/
+
+        order_book_tests.cpp
+        (unit tests for order matching)
+
+        latency_benchmark.cpp
+        (benchmark order insert + match speed)
+
+lob_service/
+
+    service.py
+    (run LOB as service
+     message handling)
+
+    client.py
+    (send orders from Python strategies)
+
+    config.yaml
+    (service ports, snapshot interval)
+
+execution/
+
+    order_router.py
+    (route strategy orders to LOB)
+
+    fill_simulator.py
+    (partial fills
+     queue position simulation)
+
+    slippage_model.py
+    (price impact model)
+
+    transaction_cost_model.py
+    (exchange fees + trading cost)
+
+portfolio/
+
+    pnl_engine.py
+    (realized PnL
+     mark-to-market PnL)
+
+    risk_engine.py
+    (exposure monitoring
+     VaR approximation)
+
+    inventory_tracker.py
+    (current positions
+     option greeks exposure)
+
+simulation/
+
+    market_simulator.py
+    (synthetic order flow generator)
+
+    event_engine.py
+    (event-driven simulation engine)
+
+    market_data_generator.py
+    (generate ticks from historical data)
+
+    scenario_runner.py
+    (different volatility regimes)
+
+backtester/
+
+    trading_loop.py
+    (core trading loop connecting modules)
+
+    strategy_runner.py
+    (run different strategies)
+
+    experiment_manager.py
+    (hyperparameter sweeps)
+
+analytics/
+
+    pnl_attribution.py
+    (PnL breakdown by strategy)
+
+    sharpe_ratio.py
+    (risk-adjusted return)
+
+    drawdown_analysis.py
+    (max drawdown metrics)
+
+    trade_statistics.py
+    (win rate, average trade PnL)
+
+visualization/
+
+    vol_surface_3d.py
+    (3D volatility surface using Plotly)
+
+    smile_plot.py
+    (volatility smile charts)
+
+    orderbook_depth.py
+    (depth chart visualization)
+
+    pnl_curve.py
+    (PnL over time)
+
+    inventory_plot.py
+    (inventory trajectory)
+
+notebooks/
+
+    iv_surface_demo.ipynb
+    (demonstrate volatility surface generation)
+
+    vol_strategy_demo.ipynb
+    (show volatility trading signals)
+
+    market_maker_demo.ipynb
+    (simulate market making strategy)
+
+    full_system_backtest.ipynb
+    (complete trading system demo)
+
+tests/
+
+    test_bs.py
+    (pricing correctness)
+
+    test_vol_engine.py
+    (IV surface accuracy)
+
+    test_vol_strategy.py
+    (signal logic tests)
+
+    test_market_maker.py
+    (inventory + quoting behavior)
+
+    test_execution.py
+    (order routing tests)
+
+    integration_tests.py
+    (full pipeline tests)
+
+ci/
+
+    github-actions.yml
+    (CI pipeline for testing)
+
+    perf-regression.yml
+    (performance regression checks)
+
+docs/
+
+    architecture.md
+    (system architecture explanation)
+
+    api.md
+    (module APIs)
+
+    runbook.md
+    (how to run the system)
+
+scripts/
+
+    run_backtest.py
+    (execute trading experiments)
+
+    build_core_cpp.sh
+    (compile C++ engine)
+
+    run_lob_service.sh
+    (launch order book server)
+
+    export_figs.sh
+    (export plots)
+
+logs/
+
+    latest.log
