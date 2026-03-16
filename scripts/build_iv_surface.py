@@ -12,7 +12,7 @@ logger=logging.getLogger(__name__)
 def run_live_loop(symbol:str="SPY", refresh_seconds:float=20, n_strikes:float=80, n_maturities:float=80,r:float=0.01):
     while True:
         now=time.time()
-        logger.info("fetching option chain for %s at %s", symbol, now.isoformat())
+        logger.info("fetching option chain for %s at %s", symbol, now)
         df=load_option_chain_yahoo(symbol)
 
         if df.empty:

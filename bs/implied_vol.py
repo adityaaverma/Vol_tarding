@@ -1,5 +1,5 @@
-from greeks import vega
-from pricing import bs_price
+from .greeks import vega
+from .pricing import bs_price
 import numpy as np
 
 def implied_vol_newton(market_price,S,K,T,r,option_type='call',initial_vol=0.2,tol=1e-8, max_iter=100):

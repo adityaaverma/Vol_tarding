@@ -1,4 +1,4 @@
-from pricing import _d1_d2_calculate
+from .pricing import _d1_d2_calculate
 from scipy.stats import norm
 import numpy as np
 
