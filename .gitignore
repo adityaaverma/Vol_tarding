@@ -1,3 +1,6 @@
 .vscode/
 
 bs/__pycache__/
+vol/__pycache__/
+scripts/__pycache__/
+data/__pycache__/
