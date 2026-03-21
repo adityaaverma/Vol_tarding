@@ -18,7 +18,6 @@ from typing import Optional
 #     fig.show()
 #     return fig
 def plot_iv_surface(grid_x: np.ndarray, grid_t: np.ndarray, grid_z: np.ndarray, title: Optional[str] = None):
-    import plotly.graph_objects as go
 
     fig = go.Figure(data=[
         go.Surface(

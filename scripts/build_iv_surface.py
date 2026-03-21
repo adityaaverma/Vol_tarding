@@ -2,7 +2,7 @@ import time
 import logging
 import pandas as pd
 from data.loaders import load_option_chain_yahoo
-from vol.iv_surface import compute_iv_for_chain,prepare_surface_data
+from vol.iv_surface import compute_iv_for_chain
 from vol.interpolation import build_iv_grid
 from visualization.plots import plot_iv_surface,plot_smile
 

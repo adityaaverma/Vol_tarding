@@ -1,72 +1,116 @@
 import numpy as np
 import pandas as pd
-from scipy.interpolate import griddata
+from scipy.interpolate import griddata,UnivariateSpline
 
-def build_iv_grid(df: pd.DataFrame, n_strikes: int = 80, n_maturities: int = 80):
-    """
-    Build a smooth IV surface using:
-    - moneyness (log(K/S))
-    - binning (to remove noise)
-    - interpolation
+from scipy.interpolate import interp1d
 
-    Returns:
-    grid_x (moneyness), grid_t (tenor), grid_iv
-    """
+from scipy.interpolate import UnivariateSpline, interp1d
+import numpy as np
+import pandas as pd
+
+def build_iv_grid(df, n_strikes=80, n_maturities=80):
 
     df = df.copy()
+    smiles = {}
 
     # =========================
-    # 🔥 USE MONEINESS (CRITICAL)
+    # 🔥 STEP 1: Build smiles
     # =========================
-    # df['moneyness'] = np.log(df['strike'] / df['underlying_last'])
+    for expiry, group in df.groupby('expiry'):
+
+        group = group.sort_values('moneyness')
+
+        # ✅ remove duplicates
+        group = group.drop_duplicates(subset='moneyness')
+
+        k = group['moneyness'].values
+        iv = group['iv'].values
+        T = group['time_to_expiry'].median()
+
+        if len(k) < 3:
+            continue
+
+        try:
+            # 🔥 stable smoothing
+            spline = UnivariateSpline(k, iv, s=0.05)
+
+            k_grid = np.linspace(k.min(), k.max(), n_strikes)
+            iv_smooth = spline(k_grid)
+
+            # ✅ clip to realistic range
+            iv_smooth = np.clip(iv_smooth, 0.05, 1.0)
+
+        except Exception as e:
+            print(f"Spline failed for expiry {expiry}: {e}")
+
+            # 🔥 fallback → raw data
+            k_grid = k
+            iv_smooth = iv
+
+        smiles[T] = (k_grid, iv_smooth)
+
+    if len(smiles) < 2:
+        raise ValueError("Not enough valid expiries")
 
     # =========================
-    # 🔥 BINNING (SMOOTHING STEP)
+    # 🔥 STEP 2: ALIGN STRIKES (NO EXTRAPOLATION)
     # =========================
-    df['moneyness_bin'] = pd.cut(df['moneyness'], bins=30)
-    df['tenor_bin'] = pd.cut(df['time_to_expiry'], bins=20)
-
-    grouped = (
-        df.groupby(['moneyness_bin', 'tenor_bin'])['iv']
-        .mean()
-        .reset_index()
+    common_k = np.linspace(
+        min(v[0].min() for v in smiles.values()),
+        max(v[0].max() for v in smiles.values()),
+        n_strikes
     )
 
-    # convert bins → numeric
-    grouped['moneyness'] = grouped['moneyness_bin'].apply(lambda x: x.mid)
-    grouped['tenor'] = grouped['tenor_bin'].apply(lambda x: x.mid)
+    tenors = sorted(smiles.keys())
+    iv_matrix = []
 
-    grouped = grouped.dropna(subset=['moneyness', 'tenor', 'iv'])
+    for T in tenors:
+        k_grid, iv_vals = smiles[T]
 
-    # =========================
-    # 🔥 GRID CREATION
-    # =========================
-    x = grouped['moneyness'].values
-    y = grouped['tenor'].values
-    z = grouped['iv'].values
-
-    grid_x, grid_t = np.meshgrid(
-        np.linspace(x.min(), x.max(), n_strikes),
-        np.linspace(y.min(), y.max(), n_maturities)
-    )
-
-    # =========================
-    # 🔥 INTERPOLATION
-    # =========================
-    grid_iv = griddata((x, y), z, (grid_x, grid_t), method='cubic')
-
-    # fallback for NaNs
-    nan_mask = np.isnan(grid_iv)
-    if np.any(nan_mask):
-        grid_iv[nan_mask] = griddata(
-            (x, y), z,
-            (grid_x[nan_mask], grid_t[nan_mask]),
-            method='nearest'
+        f = interp1d(
+            k_grid,
+            iv_vals,
+            bounds_error=False,
+            fill_value=np.nan   # ❌ NO extrapolation
         )
 
-    # =========================
-    # 🔥 FINAL CLIP (REMOVE SPIKES)
-    # =========================
-    grid_iv = np.clip(grid_iv, 0.05, 1.5)
+        iv_matrix.append(f(common_k))
 
-    return grid_x, grid_t, grid_iv
+    iv_matrix = np.array(iv_matrix)
+
+    # =========================
+    # 🔥 STEP 3: INTERPOLATE ACROSS TIME (NO EXTRAPOLATION)
+    # =========================
+    T_grid = np.linspace(min(tenors), max(tenors), n_maturities)
+
+    final_surface = []
+
+    for i in range(len(common_k)):
+        f = interp1d(
+            tenors,
+            iv_matrix[:, i],
+            kind='linear',
+            bounds_error=False,
+            fill_value=np.nan   # ❌ NO extrapolation
+        )
+        final_surface.append(f(T_grid))
+
+    final_surface = np.array(final_surface).T
+
+    # =========================
+    # 🔥 STEP 4: DEBUG (NO FAKE FILL)
+    # =========================
+    print(
+        "Surface stats:",
+        np.nanmin(final_surface),
+        np.nanmax(final_surface),
+        np.nanstd(final_surface),
+        "NaNs:", np.isnan(final_surface).sum()
+    )
+
+    # Optional: mask NaNs for cleaner plotting
+    final_surface = np.ma.masked_invalid(final_surface)
+
+    grid_x, grid_t = np.meshgrid(common_k, T_grid)
+
+    return grid_x, grid_t, final_surface

@@ -110,24 +110,3 @@ def compute_iv_for_chain(df:pd.DataFrame,r:float,use:str='mid')->pd.DataFrame:
     df['moneyness'] = np.log(df['strike'] / df['underlying_last'])
 
     return df
-
-
-def prepare_surface_data(df_iv: pd.DataFrame, n_moneyness=30, n_tenor=20):
-    df = df_iv.copy()
-
-    # binning
-    df['moneyness_bin'] = pd.cut(df['moneyness'], bins=n_moneyness)
-    df['tenor_bin'] = pd.cut(df['time_to_expiry'], bins=n_tenor)
-
-    # aggregate
-    grouped = (
-        df.groupby(['moneyness_bin', 'tenor_bin'])['iv']
-        .mean()
-        .reset_index()
-    )
-
-    # convert bins → numeric
-    grouped['moneyness'] = grouped['moneyness_bin'].apply(lambda x: x.mid)
-    grouped['tenor'] = grouped['tenor_bin'].apply(lambda x: x.mid)
-
-    return grouped.dropna(subset=['moneyness', 'tenor', 'iv'])
