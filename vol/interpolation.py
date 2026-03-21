@@ -2,40 +2,71 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import griddata
 
-def build_iv_grid(df:pd.DataFrame,n_strikes:int=80,n_maturities:int=80,strike_pad:float=0.1):
+def build_iv_grid(df: pd.DataFrame, n_strikes: int = 80, n_maturities: int = 80):
     """
-    Excepts: 
-    This function takes in a dataframe with columns 'strikes', 'time_to_expiry', 
-    and 'iv' and builds a grid of implied volatilities using interpolation.
-    The grid will have n_strikes number of strike points and n_maturities number 
-    of maturity points. The strike range will be padded by strike_pad percentage 
-    on both sides to ensure we have a wider range of strikes for interpolation.
-    
+    Build a smooth IV surface using:
+    - moneyness (log(K/S))
+    - binning (to remove noise)
+    - interpolation
+
     Returns:
-    The function returns three 2D arrays: grid_strikes, grid_maturities, and 
-    grid_iv, which represent the strike prices, time to expiry, and implied 
-    volatilities on the grid, respectively.    
+    grid_x (moneyness), grid_t (tenor), grid_iv
     """
 
-    strikes=df['strikes'].values
-    maturities=df['time_to_expiry'].values
-    ivs=df['iv'].values
+    df = df.copy()
 
-    smin,smax=strikes.min(),strikes.max()
-    s_pad=max(1.0,strike_pad*(smax-smin))
-    grid_strikes=np.linspace(max(1.0,smin-s_pad),smax+s_pad,n_strikes)
+    # =========================
+    # 🔥 USE MONEINESS (CRITICAL)
+    # =========================
+    # df['moneyness'] = np.log(df['strike'] / df['underlying_last'])
 
-    tmin,tmax=maturities.min(),maturities.max()
-    grid_maturities=np.linspace(tmin,tmax if tmax>0 else tmin+30/365.0 , n_maturities)
+    # =========================
+    # 🔥 BINNING (SMOOTHING STEP)
+    # =========================
+    df['moneyness_bin'] = pd.cut(df['moneyness'], bins=30)
+    df['tenor_bin'] = pd.cut(df['time_to_expiry'], bins=20)
 
-    grid_s,grid_t=np.meshgrid(grid_strikes,grid_maturities)
+    grouped = (
+        df.groupby(['moneyness_bin', 'tenor_bin'])['iv']
+        .mean()
+        .reset_index()
+    )
 
+    # convert bins → numeric
+    grouped['moneyness'] = grouped['moneyness_bin'].apply(lambda x: x.mid)
+    grouped['tenor'] = grouped['tenor_bin'].apply(lambda x: x.mid)
 
-    pts=np.vstack((strikes,maturities)).T
-    grid_iv=griddata(pts,ivs,(grid_s,grid_t),method='cubic')
+    grouped = grouped.dropna(subset=['moneyness', 'tenor', 'iv'])
 
-    nan_masks=np.isnan(grid_iv)
-    if(np.any(nan_masks)):
-        grid_iv[nan_masks]=griddata(pts,ivs,(grid_s[nan_masks],grid_t[nan_masks]),method='nearest')
+    # =========================
+    # 🔥 GRID CREATION
+    # =========================
+    x = grouped['moneyness'].values
+    y = grouped['tenor'].values
+    z = grouped['iv'].values
 
-    return grid_s,grid_t,grid_iv
+    grid_x, grid_t = np.meshgrid(
+        np.linspace(x.min(), x.max(), n_strikes),
+        np.linspace(y.min(), y.max(), n_maturities)
+    )
+
+    # =========================
+    # 🔥 INTERPOLATION
+    # =========================
+    grid_iv = griddata((x, y), z, (grid_x, grid_t), method='cubic')
+
+    # fallback for NaNs
+    nan_mask = np.isnan(grid_iv)
+    if np.any(nan_mask):
+        grid_iv[nan_mask] = griddata(
+            (x, y), z,
+            (grid_x[nan_mask], grid_t[nan_mask]),
+            method='nearest'
+        )
+
+    # =========================
+    # 🔥 FINAL CLIP (REMOVE SPIKES)
+    # =========================
+    grid_iv = np.clip(grid_iv, 0.05, 1.5)
+
+    return grid_x, grid_t, grid_iv

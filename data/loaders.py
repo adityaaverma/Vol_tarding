@@ -49,7 +49,7 @@ def load_option_chain_yahoo(symbol:str)->pd.DataFrame:
     
     out=pd.concat(dfs,ignore_index=True)
 
-    out[['strike','ask','bid','lastPrice','underlying_last']]=out[['strike','ask','bid','lastPrice','underlying_last']].appply(pd.to_numeric,errors='coerce')
+    out[['strike','ask','bid','lastPrice','underlying_last']]=out[['strike','ask','bid','lastPrice','underlying_last']].apply(pd.to_numeric,errors='coerce')
     return out
 
 

@@ -1,8 +1,8 @@
 import time
 import logging
-
+import pandas as pd
 from data.loaders import load_option_chain_yahoo
-from vol.iv_surface import compute_iv_for_chain
+from vol.iv_surface import compute_iv_for_chain,prepare_surface_data
 from vol.interpolation import build_iv_grid
 from visualization.plots import plot_iv_surface,plot_smile
 
@@ -11,7 +11,7 @@ logger=logging.getLogger(__name__)
 
 def run_live_loop(symbol:str="SPY", refresh_seconds:float=20, n_strikes:float=80, n_maturities:float=80,r:float=0.01):
     while True:
-        now=time.time()
+        now=pd.Timestamp.utcnow()
         logger.info("fetching option chain for %s at %s", symbol, now)
         df=load_option_chain_yahoo(symbol)
 
@@ -21,12 +21,12 @@ def run_live_loop(symbol:str="SPY", refresh_seconds:float=20, n_strikes:float=80
             continue
 
         df_iv= compute_iv_for_chain(df ,r, 'mid')
-        #drop Nan's and extermly short maturities
-        df_iv=df_iv[df_iv['expiry']>1/365].dropna(subset=['iv'])
+
 
         #build grid
-
         grid_s,grid_t,grid_z=build_iv_grid(df_iv,n_strikes,n_maturities)
+
+
         title = f"{symbol} IV Surface {now.strftime('%Y-%m-%d %H:%M:%S UTC')}"
 
         fig=plot_iv_surface(grid_s,grid_t,grid_z,title=title)

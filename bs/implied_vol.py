@@ -7,6 +7,7 @@ def implied_vol_newton(market_price,S,K,T,r,option_type='call',initial_vol=0.2,t
     S = np.asarray(S, dtype=float)
     K = np.asarray(K, dtype=float)
     T = np.asarray(T, dtype=float)
+    option_type = np.asarray(option_type,dtype=str)
 
     market_price,S,K,T=np.broadcast_arrays(market_price,S,K,T)
 
@@ -14,15 +15,21 @@ def implied_vol_newton(market_price,S,K,T,r,option_type='call',initial_vol=0.2,t
     S = np.atleast_1d(S)
     K = np.atleast_1d(K)
     T = np.atleast_1d(T)
+    option_type=np.broadcast_to(option_type,market_price.shape)
 
     #arbitrage check
+    is_call=option_type=='call'
+
     disc=np.exp(-r*T)
-    if option_type=='call':
-        lower_bound=np.maximum(S-K*disc,0)
-        upper_bound=S
-    else: 
-        lower_bound=np.maximum(K*disc-S,0)
-        upper_bound=K*disc
+
+    lower_bound=np.where(is_call,np.maximum(S-K*disc,0),np.maximum(K*disc-S,0))
+    upper_bound=np.where(is_call,S,K*disc)
+    # if option_type=='call':
+    #     lower_bound=np.maximum(S-K*disc,0)
+    #     upper_bound=S
+    # else: 
+    #     lower_bound=np.maximum(K*disc-S,0)
+    #     upper_bound=K*disc
 
     invalid=(market_price<lower_bound) | (market_price>upper_bound)
     
@@ -33,7 +40,7 @@ def implied_vol_newton(market_price,S,K,T,r,option_type='call',initial_vol=0.2,t
     for _ in range(max_iter):
         if not np.any(active):
             break
-        price=bs_price(S[active],K[active],T[active],r,sigma[active],option_type)
+        price=bs_price(S[active],K[active],T[active],r,sigma[active],option_type[active])
 
         v=vega(S[active],K[active],T[active],r,sigma[active])
 
@@ -61,8 +68,10 @@ def implied_vol_bisection(market_price,S,K,T,r,option_type='call',low=1e-6,high=
     S = np.asarray(S, dtype=float)
     K = np.asarray(K, dtype=float)
     T = np.asarray(T, dtype=float)
+    option_type = np.asarray(option_type,dtype=str)
 
     market_price, S, K, T = np.broadcast_arrays(market_price, S, K, T)
+    option_type=np.broadcast_to(option_type,market_price.shape)
 
     low_vol=np.full_like(S,low,dtype=float)
     high_vol=np.full_like(S,high,dtype=float)
@@ -87,7 +96,7 @@ def implied_vol(market_price,S,K,T,r,option_type='call'):
 
     failed=diff>1e-6
     if np.any(failed):
-        sigma[failed]=implied_vol_bisection(market_price[failed],S[failed],K[failed],T[failed],r,option_type)
+        sigma[failed]=implied_vol_bisection(market_price[failed],S[failed],K[failed],T[failed],r,option_type[failed])
 
     return sigma
 

@@ -13,7 +13,7 @@ def _compute_time_to_expiry(expiries:pd.Series,now:Optional[pd.Timestamp]=None)-
     if now is None:
         now=pd.Timestamp.utcnow()
 
-    expiries=pd.to_datetime(expiries)
+    expiries=pd.to_datetime(expiries,utc=True)
     delta=(expiries-now).dt.total_seconds()
     return np.maximum(delta/(365*24*3600),0)
 
@@ -41,30 +41,93 @@ def compute_iv_for_chain(df:pd.DataFrame,r:float,use:str='mid')->pd.DataFrame:
 
     if df.empty:
         return df
+
+    df = df.copy()
+
+    #  Time to expiry
+    df['time_to_expiry'] = _compute_time_to_expiry(df['expiry'])
+
+    #  Ensure numeric
+    for col in ['underlying_last', 'strike', 'bid', 'ask', 'lastPrice']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
     
-    df=df.copy()
-    df['time_to_expiry']=_compute_time_to_expiry(df['expiry'])
-    if use=='mid':
-        df['mid']=(df['bid'].fillna(0)+df['ask'].fillna(0))/2
-        df['mid']=df['mid'].replace(0,np.nan).fillna(df['lastPrice'])
-    elif use=='last':
-        df['mid']=df['lastPrice']
+    # CLEAN MID PRICE LOGIC
+    bid = df['bid']
+    ask = df['ask']
 
-    else:
-        df['mid']=(df['bid'].fillna(0)+df['ask'].fillna(0))/2
-        df['mid']=df['mid'].fillna(df['lastPrice'])
+    mid = (bid + ask) / 2
 
-    for z in ['underlying_last','strike','mid','time_to_expiry']:
-        df[z]=pd.to_numeric(df[z],errors='coerce')
+    # invalid quotes
+    invalid = (
+        (bid <= 0) |
+        (ask <= 0) |
+        (ask < bid) |
+        ((ask - bid) / (bid + 1e-8) > 0.5)   # wide spread filter
+    )
 
-    market_price=df['mid'].values
-    S=df['underlying_last'].values
-    K=df['strike'].value
-    T=df['time_to_expiry'].values
-    option_type=df['option_type'].values
+    mid[invalid] = np.nan
 
-    logger.info('computing implied volatilities for %d options',len(df))
-    ivs=implied_vol(market_price,S,K,T,r,option_type)
-    df['iv']=ivs
+    if use == 'last':
+        mid = df['lastPrice']
+
+    elif use == 'best':
+        # fallback only when spread is reasonable
+        tight = ((ask - bid) / (bid + 1e-8)) < 0.2
+        mid = mid.fillna(df['lastPrice'].where(tight))
+
+    # default = 'mid'
+    df['mid'] = mid
+
+    
+    # FINAL CLEANING BEFORE IV
+    df = df[
+        (df['time_to_expiry'] > 2/365) &
+        (df['mid'] > 0) &
+        (df['underlying_last'] > 0) &
+        (df['strike'] > 0)
+    ]
+
+    # IV CALCULATION
+    market_price = df['mid'].values
+    S = df['underlying_last'].values
+    K = df['strike'].values
+    T = df['time_to_expiry'].values
+    option_type = df['option_type'].values
+
+    logger.info('computing implied volatilities for %d options', len(df))
+
+    ivs = implied_vol(market_price, S, K, T, r, option_type)
+    df['iv'] = ivs
+
+
+    #  FINAL IV FILTER    
+    df = df[
+        df['iv'].notna() &
+        df['iv'].between(0.05, 1.0)
+    ]
+
+    df['moneyness'] = np.log(df['strike'] / df['underlying_last'])
 
     return df
+
+
+def prepare_surface_data(df_iv: pd.DataFrame, n_moneyness=30, n_tenor=20):
+    df = df_iv.copy()
+
+    # binning
+    df['moneyness_bin'] = pd.cut(df['moneyness'], bins=n_moneyness)
+    df['tenor_bin'] = pd.cut(df['time_to_expiry'], bins=n_tenor)
+
+    # aggregate
+    grouped = (
+        df.groupby(['moneyness_bin', 'tenor_bin'])['iv']
+        .mean()
+        .reset_index()
+    )
+
+    # convert bins → numeric
+    grouped['moneyness'] = grouped['moneyness_bin'].apply(lambda x: x.mid)
+    grouped['tenor'] = grouped['tenor_bin'].apply(lambda x: x.mid)
+
+    return grouped.dropna(subset=['moneyness', 'tenor', 'iv'])
