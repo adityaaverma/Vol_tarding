@@ -1,55 +1,95 @@
 import yfinance as yf
 import pandas as pd
-from typing import Literal,Dict
-import datetime as dt
 import logging
-import numpy as np
+import datetime
+import pytz
 
-logger=logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
+def load_option_chain_yahoo(symbol: str) -> pd.DataFrame:
 
-def load_option_chain_yahoo(symbol:str)->pd.DataFrame:
-    """
-    return a DataFrame with cols:
-    1. Strike(float),
-    2. Expiry(datetime),
-    3. OptionType ('call' or 'put')
-    4. Bid (float),
-    5. Ask (float), 
-    6. LastPrice (float),
-    7. Underlying_last (float)
-    """
+    ny_tz = pytz.timezone('America/New_York')
+    now = datetime.datetime.now(ny_tz)
 
-    ticker=yf.Ticker(symbol)
-    #this fetches list of expiry strings in 'YYYY-MM-DD' format
-    expiries=ticker.options
-    dfs=[]
-    underlying=ticker.history(period='1d')['Close'].iloc[-1]
+    ticker = yf.Ticker(symbol)
+    expiries = list(ticker.options[:8])
 
-    for exp in expiries:
+    data = []
+
+    spot = ticker.fast_info["last_price"]
+
+    for expiry in expiries:
         try:
-            oc=ticker.option_chain(exp)
+            expiry_dt = pd.to_datetime(expiry).tz_localize(ny_tz)
+
+            T = (expiry_dt - now).total_seconds() / (365 * 24 * 3600)
+
+            if T <= 0:
+                continue
+
+            chain = ticker.option_chain(expiry)
+
+            calls = chain.calls.copy()
+            puts = chain.puts.copy()
+
+            # ---------- CALLS ----------
+            calls = calls[
+                (calls["strike"] >= spot) &
+                (calls["strike"] >= 0.8 * spot) &
+                (calls["strike"] <= 1.2 * spot)
+            ]
+
+            for _, row in calls.iterrows():
+                P = row["lastPrice"]
+                K = row["strike"]
+                iv_yf = row["impliedVolatility"]
+
+                if (
+                    P < 0.05 or
+                    row["openInterest"] < 10
+                ):
+                    continue
+
+                data.append({
+                    "K": K,
+                    "P": P,
+                    "T": T,
+                    "option_type": "call",
+                    "spot": spot,
+                    "iv_yf": iv_yf
+                })
+
+            # ---------- PUTS ----------
+            puts = puts[
+                (puts["strike"] <= spot) &
+                (puts["strike"] >= 0.8 * spot) &
+                (puts["strike"] <= 1.2 * spot)
+            ]
+
+            for _, row in puts.iterrows():
+                P = row["lastPrice"]
+                K = row["strike"]
+                iv_yf = row["impliedVolatility"]
+
+                if (
+                    P < 0.05 or
+                    row["openInterest"] < 10
+                ):
+                    continue
+
+                data.append({
+                    "K": K,
+                    "P": P,
+                    "T": T,
+                    "option_type": "put",
+                    "spot": spot,
+                    "iv_yf": iv_yf
+                })
 
         except Exception as e:
-            logger.warning("failed to fecth option chain for %s, %s:%s",symbol,exp,e)
+            logger.warning(f"Failed for expiry {expiry}: {e}")
             continue
 
-        for which,df in (('call',oc.calls),('put',oc.puts)):
-            if df is None or df.empty:
-                continue
-            temp=df.copy()
-            # temp=temp.rename(columns={'lastPrice:'lastPrice','bid':
-            temp['expiry']=pd.to_datetime(exp)
-            temp['option_type']=which
-            temp['underlying_last']=underlying
-            dfs.append(temp[['strike','ask','bid','lastPrice','expiry','option_type','underlying_last']])
+    df = pd.DataFrame(data)
 
-    if not dfs:
-        return pd.DataFrame(columns=['strike','ask','bid','lastPrice','expiry','option_type','underlying_last'])
-    
-    out=pd.concat(dfs,ignore_index=True)
-
-    out[['strike','ask','bid','lastPrice','underlying_last']]=out[['strike','ask','bid','lastPrice','underlying_last']].apply(pd.to_numeric,errors='coerce')
-    return out
-
-
+    return df
