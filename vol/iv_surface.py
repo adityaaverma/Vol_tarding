@@ -1,25 +1,11 @@
 import numpy as np
 import pandas as pd
 import logging
-from datetime import datetime
-from typing import Optional
 from bs.implied_vol import implied_vol
+from bs.pricing import bs_price
 logger=logging.getLogger(__name__)
-
-def _compute_time_to_expiry(expiries:pd.Series,now:Optional[pd.Timestamp]=None)->pd.Series:
-    """
-    takes in expiries and now as optional arguments and returns time to expiry in years
-    """
-    if now is None:
-        now=pd.Timestamp.utcnow()
-
-    expiries=pd.to_datetime(expiries,utc=True)
-    delta=(expiries-now).dt.total_seconds()
-    return np.maximum(delta/(365*24*3600),0)
-
-
     
-def compute_iv_for_chain(df:pd.DataFrame,r:float,use:str='mid')->pd.DataFrame:
+def compute_iv_for_chain(df:pd.DataFrame,r:float)->pd.DataFrame:
     '''
     in this function we compute the implied volatilies for the given option chain dataframe. 
     The dataframe is expected to have the following columns:
@@ -39,74 +25,21 @@ def compute_iv_for_chain(df:pd.DataFrame,r:float,use:str='mid')->pd.DataFrame:
 
     '''
 
-    if df.empty:
-        return df
+    copy=df.copy()
+    copy=copy.dropna(subset=['K','P','T','option_type','spot'])
+    strikes=copy['K'].values
+    market_price=copy['P'].values
+    time_to_expiries=copy['T'].values
+    option_type=copy['option_type'].values
+    spot=copy['spot'].values
 
-    df = df.copy()
-
-    #  Time to expiry
-    df['time_to_expiry'] = _compute_time_to_expiry(df['expiry'])
-
-    #  Ensure numeric
-    for col in ['underlying_last', 'strike', 'bid', 'ask', 'lastPrice']:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
-
+    iv=implied_vol(market_price,spot,strikes,time_to_expiries,r,option_type)
+    copy['iv']=iv
+    copy['iv_diff']=copy['iv']-copy['iv_yf']
+    copy['moneyness']=np.log(copy['K']/copy['spot'])
+    copy['bs_price']=bs_price(spot,strikes,time_to_expiries,r,iv,option_type)
+    copy['price_diff']=abs(copy['P']-copy['bs_price'])
     
-    # CLEAN MID PRICE LOGIC
-    bid = df['bid']
-    ask = df['ask']
+    print(copy)
 
-    mid = (bid + ask) / 2
-
-    # invalid quotes
-    invalid = (
-        (bid <= 0) |
-        (ask <= 0) |
-        (ask < bid) |
-        ((ask - bid) / (bid + 1e-8) > 0.5)   # wide spread filter
-    )
-
-    mid[invalid] = np.nan
-
-    if use == 'last':
-        mid = df['lastPrice']
-
-    elif use == 'best':
-        # fallback only when spread is reasonable
-        tight = ((ask - bid) / (bid + 1e-8)) < 0.2
-        mid = mid.fillna(df['lastPrice'].where(tight))
-
-    # default = 'mid'
-    df['mid'] = mid
-
-    
-    # FINAL CLEANING BEFORE IV
-    df = df[
-        (df['time_to_expiry'] > 2/365) &
-        (df['mid'] > 0) &
-        (df['underlying_last'] > 0) &
-        (df['strike'] > 0)
-    ]
-
-    # IV CALCULATION
-    market_price = df['mid'].values
-    S = df['underlying_last'].values
-    K = df['strike'].values
-    T = df['time_to_expiry'].values
-    option_type = df['option_type'].values
-
-    logger.info('computing implied volatilities for %d options', len(df))
-
-    ivs = implied_vol(market_price, S, K, T, r, option_type)
-    df['iv'] = ivs
-
-
-    #  FINAL IV FILTER    
-    df = df[
-        df['iv'].notna() &
-        df['iv'].between(0.05, 1.0)
-    ]
-
-    df['moneyness'] = np.log(df['strike'] / df['underlying_last'])
-
-    return df
+    return copy

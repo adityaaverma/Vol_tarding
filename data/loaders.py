@@ -7,12 +7,18 @@ import pytz
 logger = logging.getLogger(__name__)
 
 def load_option_chain_yahoo(symbol: str) -> pd.DataFrame:
-
+    '''
+    Fetched 
+    Spot Price, Strike, expiries, lastPrice(price of the option at which it was last traded), 
+    implied volatitlity for the respective option contract and created a dataframe
+    
+    '''
+    # used NYC time because yf fetches option contract in NYC time
     ny_tz = pytz.timezone('America/New_York')
     now = datetime.datetime.now(ny_tz)
 
     ticker = yf.Ticker(symbol)
-    expiries = list(ticker.options[:8])
+    expiries = list(ticker.options[7:15])
 
     data = []
 
@@ -33,8 +39,10 @@ def load_option_chain_yahoo(symbol: str) -> pd.DataFrame:
             puts = chain.puts.copy()
 
             # ---------- CALLS ----------
+            # for out of the money calls
             calls = calls[
-                (calls["strike"] >= spot) &
+                # switched the logic because YF gives garbage data
+                (calls["strike"] <= spot) &
                 (calls["strike"] >= 0.8 * spot) &
                 (calls["strike"] <= 1.2 * spot)
             ]
@@ -54,14 +62,16 @@ def load_option_chain_yahoo(symbol: str) -> pd.DataFrame:
                     "K": K,
                     "P": P,
                     "T": T,
-                    "option_type": "call",
+                    "option_type": "call" if K>=spot else "put",
                     "spot": spot,
                     "iv_yf": iv_yf
                 })
 
             # ---------- PUTS ----------
+            # for out of the money puts
             puts = puts[
-                (puts["strike"] <= spot) &
+                # switched the logic because YF gives garbage data
+                (puts["strike"] > spot) &
                 (puts["strike"] >= 0.8 * spot) &
                 (puts["strike"] <= 1.2 * spot)
             ]
@@ -81,7 +91,7 @@ def load_option_chain_yahoo(symbol: str) -> pd.DataFrame:
                     "K": K,
                     "P": P,
                     "T": T,
-                    "option_type": "put",
+                    "option_type": "call" if K>=spot else "put",
                     "spot": spot,
                     "iv_yf": iv_yf
                 })

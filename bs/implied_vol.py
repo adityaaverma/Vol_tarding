@@ -101,14 +101,14 @@ def implied_vol(market_price,S,K,T,r,option_type='call'):
     return sigma
 
 
-S = 100
-K = 100
-T = 1
-r = 0.05
-true_vol = 0.2
+# S = 100
+# K = 100
+# T = 1
+# r = 0.05
+# true_vol = 0.2
 
-price = bs_price(S, K, T, r, true_vol)
+# price = bs_price(S, K, T, r, true_vol)
 
-iv = implied_vol(price, S, K, T, r)
+# iv = implied_vol(price, S, K, T, r)
 
-print(iv)
+# print(iv)
