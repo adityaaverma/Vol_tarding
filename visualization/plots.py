@@ -34,46 +34,60 @@ def plot_iv_surface(grid_x: np.ndarray, grid_t: np.ndarray, grid_z: np.ndarray, 
     fig.show()
     return fig
 
-# def plot_smile(df:pd.DataFrame,expiry:pd.Timestamp,underlying:float=None,title:Optional[str]=None):
-    
-#     sel=df[df['expiry']==pd.to_datetime(expiry)].copy()
-#     sel=sel.dropna(subset=['iv','strike'])
-#     sel=sel.sort_values('strike')
 
-#     fig=go.Figure()
-#     fig.add_trace(go.Scatter(x=sel['strike'],y=sel['iv'],mode='markers+lines',name="IV Smile"))
+def plot_iv_smile(df, use_moneyness: bool = True, T=None, fig=None, show=True):
+    """
+    Plot a single IV smile.
+    Can be used standalone or as part of multi-smile plotting.
+    """
+    if fig is None:
+        fig = go.Figure()
 
-#     if underlying is not None:
-#         fig.add_vline(x=underlying,line_dash='dash',annotation_text="Underlying Price", annotation_position="top left")
+    x, x_label = get_x_axis(df, use_moneyness)
 
-#     fig.update_layout(title=title or f'IV smile - {expiry}', xaxis_title="Strike Price", yaxis_title="Implied Volatility")
-#     fig.show()
-#     return fig
+    # df = df.sort_values(by='K')  
 
-def plot_iv_smile(df,use_moneyness:bool=True):
-    '''
-    plots iv smile for every expiry
-    '''
-    fig=go.Figure()
-    x_vals,x_label=get_x_axis(df,use_moneyness)
-
-    for T,group in df.groupby('T'):
-        x,_ = get_x_axis(group,use_moneyness)
-
-        fig.add_trace(
-            go.Scatter(
-                x=x,
-                y=group['iv'],
-                mode='lines+markers',
-                name=f"T={round(T, 3)}"
-            )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=df['iv_yf'],
+            mode='lines+markers',
+            name=f"T={round(T, 3)}" if T is not None else "IV Smile"
         )
+    )
 
-        fig.update_layout(
-            title='iv_smile',
-            xaxis_title=x_label,
-            yaxis_title="Implied Volatility",
-            template="plotly_dark"
-        )
+    fig.update_layout(
+        title='IV Smile',
+        xaxis_title=x_label,
+        yaxis_title="Implied Volatility",
+        template="plotly_dark"
+    )
 
+    if show:
         fig.show()
+
+    return fig
+
+
+def plot_iv_smiles(df, use_moneyness: bool = True, show=True):
+    """
+    Plot IV smiles for all expiries in one figure.
+    """
+    fig = go.Figure()
+
+    for T, group in df.groupby('T'):
+        print(T)
+        plot_iv_smile(group, use_moneyness, T, fig, show=False)
+
+
+    fig.update_layout(
+        title='IV Smiles (All Expiries)',
+        xaxis_title='Moneyness' if use_moneyness else 'Strike',
+        yaxis_title="Implied Volatility",
+        template="plotly_dark"
+    )
+
+    if show:
+        fig.show()
+
+    return fig
