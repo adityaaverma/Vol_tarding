@@ -50,7 +50,7 @@ def plot_iv_smile(df, use_moneyness: bool = True, T=None, fig=None, show=True):
     fig.add_trace(
         go.Scatter(
             x=x,
-            y=df['iv_yf'],
+            y=df['iv'],
             mode='lines+markers',
             name=f"T={round(T, 3)}" if T is not None else "IV Smile"
         )

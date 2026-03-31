@@ -40,6 +40,5 @@ def compute_iv_for_chain(df:pd.DataFrame,r:float)->pd.DataFrame:
     copy['bs_price']=bs_price(spot,strikes,time_to_expiries,r,iv,option_type)
     copy['price_diff']=abs(copy['P']-copy['bs_price'])
     
-    print(copy)
 
     return copy
