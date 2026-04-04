@@ -38,6 +38,7 @@ def load_option_chain_yahoo(symbol: str) -> pd.DataFrame:
 
             calls = chain.calls.copy()
             puts = chain.puts.copy()
+            print(calls.columns)
 
             # ---------- CALLS ----------
             # for out of the money calls

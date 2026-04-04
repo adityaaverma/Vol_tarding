@@ -28,6 +28,6 @@ def z_score(series:np.ndarray,window:int)->np.ndarray:
 
 
 
-a=np.array([1, 2, 3, 4, 5,6,7,8,9,10])
-z=z_score(a,3)
-print(z)
+# a=np.array([1, 2, 3, 4, 5,6,7,8,9,10])
+# z=z_score(a,3)
+# print(z)

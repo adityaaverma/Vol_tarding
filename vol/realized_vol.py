@@ -21,7 +21,6 @@ def realized_vol(prices:np.ndarray,window:int)->np.ndarray:
     con=np.convolve(returns,kernel,'valid')
     rv=np.sqrt(con*252)
     rv_full = np.full(len(prices), np.nan)
-    print(rv)
     rv_full[window:] = rv
     return rv_full
 
@@ -48,6 +47,6 @@ def forward_realized_vol(prices: np.ndarray, window: int) -> np.ndarray:
     return rv_full
 
 
-prices=np.exp(np.cumsum(np.random.normal(0,0.01,1000)))
+# prices=np.exp(np.cumsum(np.random.normal(0,0.01,1000)))
 
-print(realized_vol(prices,window=30))
+# print(realized_vol(prices,window=30))
