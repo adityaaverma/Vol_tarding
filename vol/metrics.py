@@ -27,6 +27,18 @@ def z_score(series:np.ndarray,window:int)->np.ndarray:
     return z_full
 
 
+def compute_percentile(series:np.ndarray,window:int)->np.ndarray:
+    percentile=np.full(series.shape[0],np.nan,dtype=float)
+    for i in range(window-1,len(series)):
+        window_data=series[i-window+1:i+1].astype(dtype=float)
+        last=window_data[-1]
+        valid=np.isfinite(window_data)
+        percentile[i]=np.mean(window_data[valid]<=last)
+    return percentile
+
+        
+
+
 
 # a=np.array([1, 2, 3, 4, 5,6,7,8,9,10])
 # z=z_score(a,3)
