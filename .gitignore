@@ -7,3 +7,4 @@ data/__pycache__/
 visualization/__pycache__/
 strategy/__pycache__/
 data/SPY_Optionsdata(2019-22).csv
+data/dte90.csv
