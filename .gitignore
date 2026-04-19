@@ -8,3 +8,11 @@ visualization/__pycache__/
 strategy/__pycache__/
 data/SPY_Optionsdata(2019-22).csv
 data/dte90.csv
+analytics.py
+API_REFERENCE.md
+README.md
+examples.py
+execution_engine.py
+pipeline.py
+PRODUCTION_GUIDE.md
+QUICK_REFERENCE.md

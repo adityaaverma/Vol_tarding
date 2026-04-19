@@ -348,3 +348,5 @@ if __name__ == '__main__':
     print(result[['spread_z','term_slope','skew','out']].corr())
     print(result[['quote_date', 'out', 'signal', 'signal_side', 'signal_change']].tail(10))
     print(result.columns)
+
+
