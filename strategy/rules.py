@@ -1,7 +1,11 @@
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass
+import logging
 
+logger=logging.getLogger(__name__)
+
+REQUIRED_COLS=['quote_date','out','signal','signal_side','signal_change','out']
 @dataclass
 class RuleConfig:
     execution_lag: int = 1          # daily EOD signal -> trade next day
@@ -10,40 +14,43 @@ class RuleConfig:
     max_holding_days: int | None = None
     cooldown_days: int = 0
 
+
+
 class VolTradeRules:
     def __init__(self,config:RuleConfig):
         self.config=config
 
+    def validate(self,df:pd.DataFrame)->None:
+        missing=[c for c in self.REQUIRED_COLS if c  not in df.columns]
+        if missing:
+            raise ValueError("backtest cannot proceed missing critical columns :{missing}")
+        
+
     def apply(self,df:pd.DataFrame)->pd.DataFrame:
         out=df.copy()
-
-        required_cols=['quote_date','out','signal','signal_side','signal_change','out']
-        missing=[col for col in required_cols if col not in out.columns]
-
-        if missing:
-            raise ValueError(f"missing required columns: {missing}")
-        
+        self._validate(out)
         out=out.sort_values('quote_date').reset_index(drop=True)
 
+
+        # 1. Vectorized liquidity Gate
+        # Instituional trade: if market is too thin we simply do not trade
         raw_position=out['signal'].fillna(0).astype(int)
-
         if "liquidity_score" in out.columns:
-            raw_position=np.where(out['liquidity_score'].to_numpy()>=self.config.min_liquidity,raw_position,0)
-
-            raw_position=pd.Series(raw_position,index=out.index)
-
+            low_liq_mask=out['liquidity_score']<self.config.min_liquidity
+            if low_liq_mask.any():
+                logger.info(f"Liquidity gate supressed trades on {low_liq_mask.sum()} bars.")
+                raw_position[low_liq_mask]=0
         
-        executed_position=raw_position.shift(self.config.execution_lag).fillna(0).astype(int)
-
+        #vectorized flip gaurd
         if not self.config.allow_flip:
             prev_raw=raw_position.shift(1).fillna(0).astype(int)
-            flip_mask=(prev_raw==1) & (raw_position==-1) | (prev_raw==-1) & (raw_position==1)
-            raw_position=raw_position.where(~flip_mask,0)
-            executed_position=raw_position.shift(self.config.execution_lag).fillna(0).astype(int)
+            flip_mask=((prev_raw==1) & (raw_position==-1)) | ((prev_raw==-1) & (raw_position==1))
+            raw_position[flip_mask]=0   
+        
+        executed_position=raw_position.shift(self.config.execution_lag).fillna(0).astype(int)
+        final_position=self._apply_stateful_rules(out,executed_position)
 
-        out['raw_position']=raw_position
-        out['position']=executed_position
-
+        out['position']=final_position
         out['position_prev']=out['position'].shift(1).fillna(0).astype(int)
         out['entry_flag']=((out['position_prev']==0) & (out['position']!=0)).astype(int)
         out['exit_flag']=((out['position_prev']!=0) & out['position']==0).astype(int)
@@ -52,6 +59,57 @@ class VolTradeRules:
         out['active']=(out['position']!=0).astype(int)
 
         return out
+    
+    def _apply_stateful_rules(self,df:pd.DataFrame, executed:pd.Series)->pd.Series:
+        """
+        enforces path dependent logic:
+        cooldown: no new entries after N days of exit
+        max Holding: Foorces close if we've held same contract for too long
+        """
+
+        dates=pd.to_datetime(df['quote_date']).to_numpy()
+        pos_arr=executed.to_numpy().copy()
+        
+        current_pos=0
+        entry_date=None
+        cooldown_end_idx=-1
+
+        for i in range(len(pos_arr)):
+
+            desired=pos_arr[i]
+            #Cooldown check
+            if i<=cooldown_end_idx and desired!=0 and current_pos==0:
+                desired=0
+
+            #Max holding check
+            if current_pos!=0 and entry_date is not None:
+                days_held=(dates[i]-entry_date).as_type('timedelta64[D]').astype(int)
+                if self.config.max_holding_days and self.config.max_holding_days<=days_held:
+                    logger.debug(f"max holding dates resched at index {i}. Forcing exit")
+                    desired=0
+
+            # State transition Machines
+            # Entry
+            if current_pos==0 and desired!=0:
+                current_pos=desired
+                entry_date=dates[i]
+
+            # Exit
+            elif current_pos!=0 and desired==0:
+                current_pos=0
+                entry_date=None
+                cooldown_end_idx=i+self.config.cooldown_days
+            
+            # flip allowed
+            elif current_pos!=0 and desired!=current_pos:
+                current_pos=desired
+                entry_date=dates[i]
+
+            pos_arr[i]=desired
+        
+        return pd.Series(pos_arr,index=executed.index,dtype=int)
+
+            
 
 def run_rules(df: pd.DataFrame, config: RuleConfig | None = None) -> pd.DataFrame:
     rules = VolTradeRules(config or RuleConfig())
