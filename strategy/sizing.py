@@ -48,6 +48,8 @@ class VolSizer:
         else:
             raise ValueError(f"unsupported sizing mode: {cfg.mode}")
         
+        return qty
+        
 
     def _vega_size(self,row:pd.Series)->float:
         """

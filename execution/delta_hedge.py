@@ -15,7 +15,7 @@ class HedgeConfig:
 
 @dataclass
 class HedgeAction:
-    sharest_to_trade:float
+    shares_to_trade:float
     target_shares:float
     residual_delta:float
     cost:float
@@ -53,7 +53,7 @@ class DeltaHedgeEngine:
         
         if self.config.mode=="NONE":
             return HedgeAction(
-                sharest_to_trade=0.0,
+                shares_to_trade=0.0,
                 target_shares=current_shares,
                 residual_delta=portfolio_delta,
                 cost=0.0,
@@ -84,7 +84,7 @@ class DeltaHedgeEngine:
             logger.debug(f"Hedge triggered ({reason}): Trading {shares_to_trade} shares. Cost: ${cost:.2f}")
 
         return HedgeAction(
-            shares_to_Trade=shares_to_trade,
+            shares_to_trade=shares_to_trade,
             target_shares=target_shares,
             residual_delta=residual,
             cost=cost,

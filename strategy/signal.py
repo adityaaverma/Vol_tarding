@@ -328,25 +328,25 @@ def run_signal_pipeline(
 
 if __name__ == '__main__':
     data=pd.read_csv(r'data\dte90.csv')
-    print(len(data))
+    print(data.columns)
     result = run_signal_pipeline(data)
-    print(result.loc[100:150, ['quote_date',
-                               'moneyness',
-                               'c_iv',
-                               'p_iv',
-                               'iv',
-                               'underlying_last',
-                               'strike',
-                               'returns',
-                               'rv',
-                               'fwd_rv',
-                               'spread',
-                               'fwd_spread',
-                               'skew',
-                               'out']])
-    print(result['out'].describe())
-    print(result[['spread_z','term_slope','skew','out']].corr())
-    print(result[['quote_date', 'out', 'signal', 'signal_side', 'signal_change']].tail(10))
+    # print(result.loc[100:150, ['quote_date',
+    #                            'moneyness',
+    #                            'c_iv',
+    #                            'p_iv',
+    #                            'iv',
+    #                            'underlying_last',
+    #                            'strike',
+    #                            'returns',
+    #                            'rv',
+    #                            'fwd_rv',
+    #                            'spread',
+    #                            'fwd_spread',
+    #                            'skew',
+    #                            'out']])
+    # print(result['out'].describe())
+    # print(result[['spread_z','term_slope','skew','out']].corr())
+    # print(result[['quote_date', 'out', 'signal', 'signal_side', 'signal_change']].tail(10))
     print(result.columns)
 
 
