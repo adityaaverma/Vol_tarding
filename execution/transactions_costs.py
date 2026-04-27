@@ -79,7 +79,7 @@ class TransactionalCostModel:
         p_mid=self._calculate_mid(row,"p")
         straddle_mid=c_mid+p_mid
 
-        slippage=straddle_mid    * config.equity_slippage_pct * n * config.multiplier
+        slippage=straddle_mid * config.equity_slippage_pct * n * config.multiplier
 
         #Regulatory fees on closing long position
         sec_fee=0.0

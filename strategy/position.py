@@ -17,7 +17,7 @@ class StraddlePosition:
     expiry:pd.Timestamp
     strike:float
     side:int # 1 for long, -1 for short
-    quantiy:float
+    quantity:float
     entry_price:float
     entry_spot:float
 
@@ -67,7 +67,7 @@ class StraddlePosition:
         # We calculate attribution to check if our greeks explain price movement 
         self.attribution['delta_pnl']+=self.side * self.delta * ds * self.quantity * LOT_SIZE
         self.attribution['gamma_pnl']+=self.side * 0.5 * self.gamma * (ds**2) * self.quantity * LOT_SIZE
-        self.attribution['theta_pnl']+=self.side * self.theta * dt * self.quantiy * LOT_SIZE
+        self.attribution['theta_pnl']+=self.side * self.theta * dt * self.quantity * LOT_SIZE
 
         #update state
         self.current_price=new_price
@@ -119,7 +119,7 @@ class PositionManager:
             expiry=row['expire_date'],
             strike=row['strike'],
             side=row['position'],
-            quantiy=quantity,
+            quantity=quantity,
             entry_price=c_price+p_price,
             entry_spot=row['underlying_last']
         )
