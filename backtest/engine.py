@@ -2,10 +2,11 @@ import pandas as pd
 import numpy as np
 from strategy.sizing import VolSizer
 from execution.delta_hedge import DeltaHedgeEngine
-from strategy.position import PositionManager,StraddlePosition
+from strategy.position import PositionManager
 from execution.transactions_costs import CostConfig,TransactionalCostModel
 from typing import Optional
 from dataclasses import dataclass,field
+from backtest.portfolio import Portfolio
 import logging
 
 logger=logging.getLogger(__name__)
@@ -23,154 +24,114 @@ class BacktestConfig:
 
 class VolBacktest:
 
-    def __init__(self,data:pd.DataFrame,sizer:VolSizer,hedger:DeltaHedgeEngine,config:BacktestConfig)->None:
-        self.data:pd.DataFrame=data
+    def __init__(self,signals_df: pd.DataFrame,options_df: pd.DataFrame,sizer:VolSizer,hedger:DeltaHedgeEngine,config:BacktestConfig)->None:
+        self.signals_df:pd.DataFrame=signals_df.sort_values('quote_date').reset_index(drop=True)
+
+        self.options_df:pd.DataFrame=options_df.copy()
+        options_df['quote_date']=pd.to_datetime(options_df['quote_date'])
+        options_df['expiry_date']=pd.to_datetime(options_df['expiry_date'])
+
+        self.options_df=options_df.set_index(['quote_date','strike','expiry']).sort_index()
+
         self.sizer:VolSizer=sizer
         self.hedger:DeltaHedgeEngine=hedger
         self.config:BacktestConfig=config or BacktestConfig()
 
         self.cost_model:TransactionalCostModel=TransactionalCostModel(self.config.costConfig)
-        self.manager:PositionManager=PositionManager(ticker=self.config.ticker)
-
-        #States 
-        self.current_pos:StraddlePosition|None=None
-        self.shares:float=0.0
-        self.cash:float=config.initial_capital
-
-        #Accumulation of PnL attribution
-        self.cum_costs:float=0.0
-        self.hedge_pnl:float=0.0
-        self.option_pnl:float=0.0
-
+        self.position_manager:PositionManager=PositionManager(ticker=self.config.ticker)
+        self._portfolio:Portfolio = Portfolio(initial_capital=self.config.initial_capital, cost_config=self.config.costConfig, 
+                                    multiplier=self.config.multiplier)
 
     def run(self)->None:
         
         results=[]
-        prev_nav=self.config.initial_capital
-        prev_spot=0.0
-
-        for idx,row in self.data.iterrows():
-            # Closing existing position if stop loss or profit take is hit or exit signal is generated
-            date = row["quote_date"]
-            spot=row.get('underlying_last',0)
-
-            daily_equity_cost=0.0
-
-            if self.current_pos is not None:
-                should_exit=self._check_stop() or (row.get('exit_flag',0)==True)
+        for idx,signal_row in self.signals_df.iterrows():
+            date=pd.to_datetime(signal_row['quote_date'])
+            spot=float(signal_row.get('underlying_last',0.0))
+            # 1. Exit Logic
+            if self._portfolio.position is not None:
+                should_exit = (signal_row.get('exit_signal',0)==1 or self._check_stop())
                 if should_exit:
-                    c_price = row.get("c_bid", 0) if self.current_pos.side == 1 else row.get("c_ask", 0)
-                    p_price = row.get("p_bid", 0) if self.current_pos.side == 1 else row.get("p_ask", 0)
+                    pos=self._portfolio.position
 
-                    #Closing all contracts and updating variables
-                    proceeds=(c_price+p_price)*self.current_pos.quantity*self.config.multiplier
-                    self.cash+=proceeds
+                    try:    
+                        # Fetch today's Price for the exact contract we hold
+                        contract_data = self.options_df.loc([date,pos.strike,pos.expiry])
+                        contract_data['underlying_last'] = spot
+                    except KeyError:
+                        logger.warning(f"Data gap for Strike {pos.strike} on {date}. Forcing close using entry price.")
+                        contract_data=pd.Series({"c_bid": pos.current_price/2 ,"p_bid":pos.current_price/2})
                     
-                    opt_cost=self.cost_model.option_close_cost(row,self.current_pos.quantity,self.current_pos.side)
-                    self.cash-=opt_cost
-                    self.cum_costs+=opt_cost
-                    
-                    if self.shares!=0:
-                        # Computing Hedging costs and updating variables
-                        hedge_action=self.hedger.calculate_hedge_action(self.shares,self.current_pos.delta,spot,is_closing=True)
-                        self.cash-=(hedge_action.shares_to_trade*spot)
+                    self._portfolio.close_position(contract_data)
 
-                        # Computing equity cost and updating variables
-                        equity_cost=self.cost_model.equity_cost(hedge_action.shares_to_trade,spot)
-                        self.cum_costs+=equity_cost
-                        self.cash-=equity_cost
-                        daily_equity_cost+=equity_cost
-
-                        #No shares left
-                        self.shares=0.0
-
-                    self.current_pos=None
-                    
-            # Opening new position if entry signal is generated and no existing position
-            if self.current_pos is None and row.get('entry_flag',0)==True:
-                signal_strength = abs(float(row.get("out", 1.0)))
-                quantity=self.sizer.calculate_quantity(row,signal_strength)
-                self.current_pos=self.manager.create_straddle(row,quantity)
-
-                c_price = row.get("c_ask", 0) if self.current_pos.side == 1 else row.get("c_bid", 0)
-                p_price = row.get("p_ask", 0) if self.current_pos.side == 1 else row.get("p_bid", 0)
-
-                entry_debit=(c_price+p_price)*quantity*self.config.multiplier
-                self.cash-=entry_debit
-
-                opening_cost=self.cost_model.option_open_cost(row,quantity,self.current_pos.side)
-                self.cash-=opening_cost
-                self.cum_costs+=opening_cost
+                    if self._portfolio.shares!=0:
+                        self._portfolio.apply_hedge(-self._portfolio.shares,spot)
             
-            # Mark to market and Delta Hedge
-            option_value=0.0    
-            pos_delta=0.0
-            if self.current_pos is not None:
-                self.current_pos.mark_to_market(row)
+            # 2. ENtry Logic
+            if self._portfolio.position is None and signal_row.get('entry_flag',0)==1:
+                try:
+                    #fetch all available contracts for today
+                    daily_chain=self.options_df.xs(date,level='quote_date').reset_index()
 
-                option_value=self.current_pos.side * (self.current_pos.current_price) *self.current_pos.quantity*self.config.multiplier
-                pos_delta=self.current_pos.portfolio_delta
-                
-                if spot>0:
-                    hedge_action=self.hedger.calculate_hedge_action(current_shares=self.shares,portfolio_delta=pos_delta,spot=spot,is_closing=False)
+                    if not daily_chain.empty():
+                        best_strike=self.position_manager.select_strike(daily_chain,spot,method="delta")
+                        entry_row=daily_chain[daily_chain['strike']==best_strike].iloc[0].copy()
 
-                    if hedge_action.shares_to_trade!=0:
-                        self.cash-=hedge_action.shares_to_trade*spot
+                        entry_row['quote_date']=date
+                        entry_row['underlying_last']=spot
 
-                        hedge_cost=self.cost_model.equity_cost(hedge_action.shares_to_trade,spot)
-                        self.cash-=hedge_cost
-                        self.cum_costs+=hedge_cost
-                        daily_equity_cost+=hedge_cost
+                        qty=self.sizer.calculate_quantity(entry_row,abs(float(signal_row.get('out',1.0))))
+                        new_pos=self.position_manager.create_straddle(entry_row,qty)
+                        new_pos.side=int(signal_row['position'])
+                        self._portfolio.open_position(new_pos,entry_row)
+                except KeyError:
+                    logger.warning(f"No options chain data available for entry on {date}")
 
-                        self.shares+=hedge_action.shares_to_trade
+            # 3. Mark to Market
 
-            nav=self.cash+option_value+(self.shares*spot)
-            spot_change=(spot-prev_spot) if prev_spot>0 else 0.0
+            if self._portfolio.position is not None:
+                pos=self._portfolio.position
 
-            # Hedge Pnl = (Shares hold * spot Move) - Equity Trading Costs
-            daily_hedge_pnl=(self.shares * spot_change)-daily_equity_cost
+                try:
+                    contract_data=self.options_df.loc[(date,pos.strike,pos.expiry)].copy()
+                    contract_data['underlying_last']=spot
+                    snap=self._portfolio.mark_to_market(contract_data)
 
-            daily_pnl=nav-prev_nav
+                except KeyError:
+                    snap = self._portfolio.mark_to_market(pd.Series({"underlying_last": spot}))
 
-            daily_option_pnl=daily_pnl-daily_hedge_pnl
+            else:
+                snap = self._portfolio.mark_to_market(pd.Series({"underlying_last": spot}))
 
-            #Accumulate
-            self.hedge_pnl+=daily_hedge_pnl
-            self.option_pnl+=daily_option_pnl
+            # 4 Delta Hedge
+            if self._portfolio.position is not None:
+                hedge_action = self.hedger.get_hedge_action(
+                    current_shares=self._portfolio.shares,
+                    portfolio_delta=self._portfolio.position.portfolio_delta,
+                    spot=spot
+                )
+                self._portfolio.apply_hedge(hedge_action.shares_to_trade, spot)
 
-            prev_nav=nav
-            prev_spot=spot
+            snap["date"] = date
+            snap["spot"] = spot
+            snap["signal"] = int(signal_row.get("signal", 0))
+            snap["out"] = float(signal_row.get("out", np.nan))
+            results.append(snap)
 
-            results.append({
-                "date": date,
-                "nav": nav,
-                "cash": self.cash,
-                "daily_pnl": daily_pnl,
-                "cumulative_pnl": nav - self.config.initial_capital,
-                "option_pnl": self.option_pnl,       
-                "hedge_pnl": self.hedge_pnl,         
-                "cumulative_costs": self.cum_costs,
-                "shares": self.shares,
-                "has_position": 1 if self.current_pos else 0,
-                "spot": spot,
-                "iv": float(row.get("iv", np.nan)),
-                "rv": float(row.get("rv", np.nan)),
-                "spread": float(row.get("spread", np.nan)),
-            })  
-
-        results_df=pd.DataFrame(results)
+        results_df = pd.DataFrame(results)
         return self._add_drawdown(results_df)
 
+
     def _check_stop(self)->bool:
-        if self.current_pos is None:
+        if self._portfolio.position is None:
             return False
         
-        entry_value=self.config.multiplier * self.current_pos.entry_price * self.current_pos.quantity
+        entry_value=self.config.multiplier * self._portfolio.position.entry_price * self._portfolio.position.quantity
 
         if entry_value==0:
             return False
         
-        pnl_pct=self.current_pos.unrealized_pnl/entry_value
+        pnl_pct=self._portfolio.position.unrealized_pnl/entry_value
 
         if self.config.stop_loss_pct and pnl_pct<=-self.config.stop_loss_pct:
             logger.info(f"Stop loss triggered at {pnl_pct*100:.1f}% loss.")

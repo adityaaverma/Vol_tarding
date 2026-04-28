@@ -14,8 +14,6 @@ class RuleConfig:
     max_holding_days: int | None = None
     cooldown_days: int = 0
 
-
-
 class VolTradeRules:
     def __init__(self,config:RuleConfig):
         self.config=config
@@ -30,7 +28,6 @@ class VolTradeRules:
         out=df.copy()
         self._validate(out)
         out=out.sort_values('quote_date').reset_index(drop=True)
-
 
         # 1. Vectorized liquidity Gate
         # Instituional trade: if market is too thin we simply do not trade

@@ -115,11 +115,11 @@ class PositionManager:
 
         return StraddlePosition(
             ticker=self.ticker,
-            entry_date=row['quote_date'],
-            expiry=row['expire_date'],
-            strike=row['strike'],
-            side=row['position'],
+            entry_date=row.get('quote_date',0),
+            expiry=row.get('expire_date',0),
+            strike=row.get('strike',0),
+            side=row.get('position',0),
             quantity=quantity,
             entry_price=c_price+p_price,
-            entry_spot=row['underlying_last']
+            entry_spot=row.get('underlying_last',0)
         )
