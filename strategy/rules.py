@@ -5,7 +5,7 @@ import logging
 
 logger=logging.getLogger(__name__)
 
-REQUIRED_COLS=['quote_date','out','signal','signal_side','signal_change','out']
+REQUIRED_COLS=['quote_date','out','signal','signal_side','signal_change']
 @dataclass
 class RuleConfig:
     execution_lag: int = 1          # daily EOD signal -> trade next day
@@ -19,14 +19,14 @@ class VolTradeRules:
         self.config=config
 
     def validate(self,df:pd.DataFrame)->None:
-        missing=[c for c in self.REQUIRED_COLS if c  not in df.columns]
+        missing=[c for c in REQUIRED_COLS if c  not in df.columns]
         if missing:
             raise ValueError("backtest cannot proceed missing critical columns :{missing}")
         
 
     def apply(self,df:pd.DataFrame)->pd.DataFrame:
         out=df.copy()
-        self._validate(out)
+        self.validate(out)
         out=out.sort_values('quote_date').reset_index(drop=True)
 
         # 1. Vectorized liquidity Gate
@@ -80,7 +80,7 @@ class VolTradeRules:
 
             #Max holding check
             if current_pos!=0 and entry_date is not None:
-                days_held=(dates[i]-entry_date).as_type('timedelta64[D]').astype(int)
+                days_held=(dates[i]-entry_date).astype('timedelta64[D]').astype(int)
                 if self.config.max_holding_days and self.config.max_holding_days<=days_held:
                     logger.debug(f"max holding dates resched at index {i}. Forcing exit")
                     desired=0

@@ -14,13 +14,14 @@ class Portfolio:
     """
 
     def __init__(self,initial_capital:float=1_000_000.0,cost_config:CostConfig|None=None,multiplier:float=100):
-        self.initial_captial:float=initial_capital
+        self.initial_capital:float=initial_capital
         self.cost_config:CostConfig=cost_config
-        self.mulitplier:float=multiplier
+        self.multiplier:float=multiplier
 
         self._cost_model:TransactionalCostModel= TransactionalCostModel(cost_config or CostConfig())
 
         #Live States
+        self.cash:float=initial_capital
         self.position:StraddlePosition | None =None
         self.shares:float=0.0
 
@@ -29,7 +30,7 @@ class Portfolio:
         self._hedge_pnl:float=0.0
         self._total_costs:float=0.0
 
-        self._avg_share_cost:float=0.0
+        self._share_avg_cost:float=0.0
         
     def open_position(self,position:StraddlePosition,row:pd.Series)->float:
         entry_cost = self._cost_model.option_open_cost(row,position.quantity,position.side)
@@ -41,7 +42,7 @@ class Portfolio:
         if pd.isna(c_price) or c_price == 0: c_price = position.entry_price / 2
         if pd.isna(p_price) or p_price == 0: p_price = position.entry_price / 2
 
-        premium_flow = -(position.side) * (c_price + p_price) * self.mulitplier * position.quantity
+        premium_flow = -(position.side) * (c_price + p_price) * self.multiplier * position.quantity
 
         self.cash +=premium_flow - entry_cost
         self._total_costs+=entry_cost
@@ -66,7 +67,7 @@ class Portfolio:
         if pd.isna(c_price) or c_price == 0: c_price = pos.current_price / 2
         if pd.isna(p_price) or p_price == 0: p_price = pos.current_price / 2
 
-        close_flow = (pos.side) * pos.quantity * self.mulitplier * (p_price + c_price)
+        close_flow = (pos.side) * pos.quantity * self.multiplier * (p_price + c_price)
 
         self.cash+=close_flow - close_cost
         self._total_costs+=close_cost
@@ -125,10 +126,10 @@ class Portfolio:
 
         spot=float(row.get("underlying_last",0.0))
 
-        unrealized_hedge_pnl= self.shares * (spot - self._avg_share_cost) if self.shares!=0.0 else 0.0
+        unrealized_hedge_pnl= self.shares * (spot - self._share_avg_cost) if self.shares!=0.0 else 0.0
 
-        nav = self.cash + (self.shares * self.spot) + (self.position.side *  self.position.current_price * self.position.quantity * self.mulitplier 
-                                                       if self.positon else 0.0)
+        nav = self.cash + (self.shares * spot) + (self.position.side *  self.position.current_price * self.position.quantity * self.multiplier 
+                                                       if self.position else 0.0)
         
         return {
             "cash": self.cash,

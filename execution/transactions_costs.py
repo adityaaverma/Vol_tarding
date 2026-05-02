@@ -19,7 +19,7 @@ class CostConfig:
     equity_min_ticket:float=1.00
 
     #regulatory (US - Typically updated annually)
-    sec_free_rate:float=8.0/1_000_000
+    sec_fee_rate:float=8.0/1_000_000
     finra_taf_per_share:float=0.000145
 
     multiplier:float=100
@@ -84,7 +84,7 @@ class TransactionalCostModel:
         #Regulatory fees on closing long position
         sec_fee=0.0
         if side==1:
-            sec_fee=n*config.multiplier*config.sec_free_rate*straddle_mid   
+            sec_fee=n*config.multiplier*config.sec_fee_rate*straddle_mid   
 
         return slippage+commission+spread_cost+sec_fee
 
@@ -107,7 +107,7 @@ class TransactionalCostModel:
         slippage=abs_shares*spot*config.equity_slippage_pct
 
         # Regulatory fees only apply to sales
-        sec_fee=config.sec_free_rate*abs_shares*spot if is_sale else 0.0
+        sec_fee=config.sec_fee_rate*abs_shares*spot if is_sale else 0.0
         taf_fee=min(abs_shares*config.finra_taf_per_share,7.27) if is_sale else 0.0
         return commission + slippage + sec_fee + taf_fee
         

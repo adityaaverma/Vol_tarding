@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from strategy.sizing import VolSizer
-from execution.delta_hedge import DeltaHedgeEngine
+from execution.delta_hedge import DeltaHedgeEngine,HedgeAction
 from strategy.position import PositionManager
 from execution.transactions_costs import CostConfig,TransactionalCostModel
 from typing import Optional
@@ -28,10 +28,10 @@ class VolBacktest:
         self.signals_df:pd.DataFrame=signals_df.sort_values('quote_date').reset_index(drop=True)
 
         self.options_df:pd.DataFrame=options_df.copy()
-        options_df['quote_date']=pd.to_datetime(options_df['quote_date'])
-        options_df['expiry_date']=pd.to_datetime(options_df['expiry_date'])
+        self.options_df['quote_date']=pd.to_datetime(self.options_df['quote_date'])
+        self.options_df['expiry']=pd.to_datetime(self.options_df['expiry'])
 
-        self.options_df=options_df.set_index(['quote_date','strike','expiry']).sort_index()
+        self.options_df=self.options_df.set_index(['quote_date','strike','expiry']).sort_index()
 
         self.sizer:VolSizer=sizer
         self.hedger:DeltaHedgeEngine=hedger
@@ -73,7 +73,7 @@ class VolBacktest:
                     #fetch all available contracts for today
                     daily_chain=self.options_df.xs(date,level='quote_date').reset_index()
 
-                    if not daily_chain.empty():
+                    if not daily_chain.empty:
                         best_strike=self.position_manager.select_strike(daily_chain,spot,method="delta")
                         entry_row=daily_chain[daily_chain['strike']==best_strike].iloc[0].copy()
 
@@ -105,7 +105,7 @@ class VolBacktest:
 
             # 4 Delta Hedge
             if self._portfolio.position is not None:
-                hedge_action = self.hedger.get_hedge_action(
+                hedge_action:HedgeAction = self.hedger.calculate_hedge_action(
                     current_shares=self._portfolio.shares,
                     portfolio_delta=self._portfolio.position.portfolio_delta,
                     spot=spot

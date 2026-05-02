@@ -26,7 +26,7 @@ class DeltaHedgeEngine:
     """
     Manages the neutralization od directional risk for volatility book
     """
-    def __init__(self,config)->float:
+    def __init__(self,config)->None:
         """
         Parameters:
         Hedge Threshold: float

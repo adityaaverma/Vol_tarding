@@ -103,7 +103,7 @@ class VolSizer:
         return cfg.max_contracts*fraction_kelly       
         
 
-    def _get_straddle_premium(row:pd.Series)->float:
-        c_mid=(row.get('c_bid',0))+(row.get('c_ask',0))/2
-        p_mid=(row.get('p_bid',0))+(row.get('p_ask',0))/2
+    def _get_straddle_premium(self, row:pd.Series)->float:
+        c_mid=((row.get('c_bid',0))+(row.get('c_ask',0)))/2
+        p_mid=((row.get('p_bid',0))+(row.get('p_ask',0)))/2
         return c_mid+p_mid
