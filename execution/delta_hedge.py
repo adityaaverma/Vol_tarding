@@ -97,8 +97,8 @@ class DeltaHedgeEngine:
 
         if shares_to_trade==0:
             return 0.0
-        
-        commision=self.config.hedge_cost_per_share*shares_to_trade
-        slippage=self.config.slippage_pct*spot*shares_to_trade
+        abs_shares=abs(shares_to_trade)
+        commision=self.config.hedge_cost_per_share*abs_shares
+        slippage=self.config.slippage_pct*spot*abs_shares
 
         return commision+slippage

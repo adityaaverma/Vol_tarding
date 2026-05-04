@@ -21,7 +21,7 @@ class VolTradeRules:
     def validate(self,df:pd.DataFrame)->None:
         missing=[c for c in REQUIRED_COLS if c  not in df.columns]
         if missing:
-            raise ValueError("backtest cannot proceed missing critical columns :{missing}")
+            raise ValueError(f"backtest cannot proceed: missing critical columns: {missing}")
         
 
     def apply(self,df:pd.DataFrame)->pd.DataFrame:
@@ -50,7 +50,7 @@ class VolTradeRules:
         out['position']=final_position
         out['position_prev']=out['position'].shift(1).fillna(0).astype(int)
         out['entry_flag']=((out['position_prev']==0) & (out['position']!=0)).astype(int)
-        out['exit_flag']=((out['position_prev']!=0) & out['position']==0).astype(int)
+        out['exit_flag']=((out['position_prev']!=0) & (out['position']==0)).astype(int)
         out['trade_action']=(out['position']-out['position_prev']).astype(int)
 
         out['active']=(out['position']!=0).astype(int)

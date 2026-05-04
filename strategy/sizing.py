@@ -48,6 +48,18 @@ class VolSizer:
         else:
             raise ValueError(f"unsupported sizing mode: {cfg.mode}")
         
+
+        qty=np.clip(qty,cfg.min_contracts,cfg.max_contracts)
+        straddle_premium=self._get_straddle_premium(row)
+
+        if straddle_premium>0 and cfg.portfolio_value>0:
+            max_by_notional = (cfg.max_notional_pct * cfg.portfolio_value) / (
+                straddle_premium * cfg.multiplier
+            )
+            qty = min(qty, max_by_notional)
+        
+        qty = max(cfg.min_contracts, np.floor(qty))
+        
         return qty
         
 

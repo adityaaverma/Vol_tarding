@@ -22,13 +22,19 @@ class Portfolio:
 
         #Live States
         self.cash:float=initial_capital
-        self.position:StraddlePosition | None =None
+        self.position:StraddlePosition | None = None
         self.shares:float=0.0
 
         #Cumulative Pnl Buckets (Realized)
         self._option_pnl:float=0.0
         self._hedge_pnl:float=0.0
         self._total_costs:float=0.0
+
+        #Greek Attribution Buckets
+        self._delta_pnl=0.0
+        self._theta_pnl=0.0
+        self._vega_pnl=0.0
+        self._gamma_pnl=0.0
 
         self._share_avg_cost:float=0.0
         
@@ -71,8 +77,12 @@ class Portfolio:
 
         self.cash+=close_flow - close_cost
         self._total_costs+=close_cost
-
         self._option_pnl+=pos.unrealized_pnl
+
+        self._delta_pnl += pos.attribution.get("delta_pnl", 0.0)
+        self._gamma_pnl += pos.attribution.get("gamma_pnl", 0.0)
+        self._vega_pnl  += pos.attribution.get("vega_pnl",  0.0)
+        self._theta_pnl += pos.attribution.get("theta_pnl", 0.0)
         self.position=None
         
         return close_flow - close_cost
@@ -131,6 +141,14 @@ class Portfolio:
         nav = self.cash + (self.shares * spot) + (self.position.side *  self.position.current_price * self.position.quantity * self.multiplier 
                                                        if self.position else 0.0)
         
+        if self.position is not None:
+            open_delta = self.position.attribution.get("delta_pnl", 0.0)
+            open_gamma = self.position.attribution.get("gamma_pnl", 0.0)
+            open_vega  = self.position.attribution.get("vega_pnl",  0.0)
+            open_theta = self.position.attribution.get("theta_pnl", 0.0)
+        else:
+            open_delta = open_gamma = open_vega = open_theta = 0.0
+        
         return {
             "cash": self.cash,
             "nav": nav,
@@ -140,6 +158,11 @@ class Portfolio:
             "cumulative_costs": self._total_costs,
             "shares": self.shares,
             "has_position": self.position is not None,
+            
+            "cumulative_delta_pnl":    self._delta_pnl + open_delta,
+            "cumulative_gamma_pnl":    self._gamma_pnl + open_gamma,
+            "cumulative_vega_pnl":     self._vega_pnl  + open_vega,
+            "cumulative_theta_pnl":    self._theta_pnl + open_theta,
         }
 
 

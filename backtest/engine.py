@@ -29,9 +29,9 @@ class VolBacktest:
 
         self.options_df:pd.DataFrame=options_df.copy()
         self.options_df['quote_date']=pd.to_datetime(self.options_df['quote_date'])
-        self.options_df['expiry']=pd.to_datetime(self.options_df['expiry'])
+        self.options_df['expire_date']=pd.to_datetime(self.options_df['expire_date'])
 
-        self.options_df=self.options_df.set_index(['quote_date','strike','expiry']).sort_index()
+        self.options_df=self.options_df.set_index(['quote_date','strike','expire_date']).sort_index()
 
         self.sizer:VolSizer=sizer
         self.hedger:DeltaHedgeEngine=hedger
@@ -42,50 +42,57 @@ class VolBacktest:
         self._portfolio:Portfolio = Portfolio(initial_capital=self.config.initial_capital, cost_config=self.config.costConfig, 
                                     multiplier=self.config.multiplier)
 
-    def run(self)->None:
-        
+
+    def run(self)->pd.DataFrame:
         results=[]
-        for idx,signal_row in self.signals_df.iterrows():
+        for _,signal_row in self.signals_df.iterrows():
             date=pd.to_datetime(signal_row['quote_date'])
             spot=float(signal_row.get('underlying_last',0.0))
+            just_exited=False
+
             # 1. Exit Logic
             if self._portfolio.position is not None:
                 should_exit = (signal_row.get('exit_signal',0)==1 or self._check_stop())
                 if should_exit:
                     pos=self._portfolio.position
-
                     try:    
                         # Fetch today's Price for the exact contract we hold
-                        contract_data = self.options_df.loc([date,pos.strike,pos.expiry])
+                        contract_data = self.options_df.loc[(date,pos.strike,pos.expiry)].copy()
                         contract_data['underlying_last'] = spot
                     except KeyError:
                         logger.warning(f"Data gap for Strike {pos.strike} on {date}. Forcing close using entry price.")
-                        contract_data=pd.Series({"c_bid": pos.current_price/2 ,"p_bid":pos.current_price/2})
+                        contract_data=pd.Series({"c_bid": pos.current_price/2 ,"p_bid":pos.current_price/2,"underlying_last":spot})
                     
                     self._portfolio.close_position(contract_data)
 
                     if self._portfolio.shares!=0:
                         self._portfolio.apply_hedge(-self._portfolio.shares,spot)
+                        
+                    just_exited=True
             
             # 2. ENtry Logic
             if self._portfolio.position is None and signal_row.get('entry_flag',0)==1:
-                try:
-                    #fetch all available contracts for today
-                    daily_chain=self.options_df.xs(date,level='quote_date').reset_index()
+                raw_side=int(signal_row.get('position'),0)
+                if raw_side not in [1,-1]:
+                    logger.warning(f"Skipping entry on {date}: invalid side value {raw_side}.")
+                else:
+                    try:
+                        #fetch all available contracts for today
+                        daily_chain=self.options_df.xs(date,level='quote_date').reset_index()
 
-                    if not daily_chain.empty:
-                        best_strike=self.position_manager.select_strike(daily_chain,spot,method="delta")
-                        entry_row=daily_chain[daily_chain['strike']==best_strike].iloc[0].copy()
+                        if not daily_chain.empty:
+                            best_strike=self.position_manager.select_strike(daily_chain,spot,method="delta")
+                            entry_row=daily_chain[daily_chain['strike']==best_strike].iloc[0].copy()
 
-                        entry_row['quote_date']=date
-                        entry_row['underlying_last']=spot
+                            entry_row['quote_date']=date
+                            entry_row['underlying_last']=spot
+                            entry_row['position']=raw_side
 
-                        qty=self.sizer.calculate_quantity(entry_row,abs(float(signal_row.get('out',1.0))))
-                        new_pos=self.position_manager.create_straddle(entry_row,qty)
-                        new_pos.side=int(signal_row['position'])
-                        self._portfolio.open_position(new_pos,entry_row)
-                except KeyError:
-                    logger.warning(f"No options chain data available for entry on {date}")
+                            qty=self.sizer.calculate_quantity(entry_row,abs(float(signal_row.get('out',1.0))))
+                            new_pos=self.position_manager.create_straddle(entry_row,qty)
+                            self._portfolio.open_position(new_pos,entry_row)
+                    except KeyError:
+                        logger.warning(f"No options chain data available for entry on {date}")
 
             # 3. Mark to Market
 
@@ -104,11 +111,12 @@ class VolBacktest:
                 snap = self._portfolio.mark_to_market(pd.Series({"underlying_last": spot}))
 
             # 4 Delta Hedge
-            if self._portfolio.position is not None:
+            if self._portfolio.position is not None and not just_exited:
                 hedge_action:HedgeAction = self.hedger.calculate_hedge_action(
                     current_shares=self._portfolio.shares,
                     portfolio_delta=self._portfolio.position.portfolio_delta,
-                    spot=spot
+                    spot=spot,
+                    is_closing=False
                 )
                 self._portfolio.apply_hedge(hedge_action.shares_to_trade, spot)
 

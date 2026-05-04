@@ -43,9 +43,9 @@ def compute_performance(results:pd.DataFrame, risk_free_rate:float=0.25, trading
     trade_stats=_trade_statistics(results)
 
     #Pnl Attribution
-    final_opt_pnl=float(results['cumulative_opt_pnl'].iloc[-1])
-    final_hedge_pnl=float(results['cumulative_hedge_pnl'].iloc[-1])
-    final_costs=float(results['cumulative_costs'].iloc[-1])
+    final_opt_pnl   = float(results["cumulative_option_pnl"].iloc[-1])
+    final_hedge_pnl = float(results["cumulative_hedge_pnl"].iloc[-1])
+    final_costs     = float(results["cumulative_costs"].iloc[-1])
 
     gross_pnl = final_hedge_pnl + final_opt_pnl
     cost_drag= final_costs/gross_pnl if abs(gross_pnl)>0 else np.nan
@@ -83,23 +83,22 @@ def _trade_statistics(results:pd.DataFrame)->dict:
 
     pos_prev=np.concatenate([[0],pos[:-1]])
 
-    results['entry_flag']=(pos==1) & (pos_prev==0)
-    results['exit_flag']=(pos_prev==1) & (pos==0)
+    entry_flags=(pos==1) & (pos_prev==0)
+    exit_flags=(pos_prev==1) & (pos==0)
 
     for i in range(len(results)):
-        if results.iloc[i]['entry_flag']==1:
+        row=results.iloc[i]
+        if entry_flags[i]==1:
             inTrade=True
             entry_nav=results.iloc[i]['nav']
             entry_date=results.iloc[i]['date']
 
-        if results.iloc[i]['exit_flag']==1:
-            exit_nav=results.iloc[i]['nav']
+        if exit_flags[i]==1:
             inTrade=False
             trades.append({
-                "pnl":exit_nav-entry_nav,
-                "holding_days":(results.iloc[i]['date']-entry_date).days
+                "pnl":row['nav']-entry_nav,
+                "holding_days":(row['date']-entry_date).days
             })
-        inTrade=False
 
     if inTrade==True:
         #Forcing exit
@@ -108,12 +107,22 @@ def _trade_statistics(results:pd.DataFrame)->dict:
             "holding_days":(results.iloc[-1]['date']-entry_date).days
         })    
 
+    if not trades:
+        return {
+            "num_trades":       0,
+            "win_rate_pct":     np.nan,
+            "avg_win":          np.nan,
+            "avg_loss":         np.nan,
+            "profit_factor":    np.nan,
+            "avg_holding_days": np.nan,
+        }
+
     trades_df=pd.DataFrame(trades)
 
     wins=trades_df[trades_df['pnl']>0]['pnl']
     losses=trades_df[trades_df['pnl']<=0]['pnl']
 
-    win_rate=len(wins)/len(results)
+    win_rate=len(wins)/len(trades_df) if len(trades_df)>0 else 0.0
     gross_wins=wins.sum()
     gross_losses=abs(losses.sum())
     pf=gross_wins/gross_losses if gross_losses>0 else np.nan

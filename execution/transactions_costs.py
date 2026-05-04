@@ -8,7 +8,7 @@ logger=logging.getLogger(__name__)
 @dataclass
 class CostConfig:
     #Options
-    option_commision_per_contract:float=0.06
+    option_commission_per_contract:float=0.06
     option_slippage_pct:float=1.00
     fallback_spread:float=0.05
     option_min_ticket:float=1.0
@@ -46,8 +46,8 @@ class TransactionalCostModel:
         spread_cost=(c_spread+p_spread)*n*config.multiplier
 
         #COmmission charge with minimum cost applied per leg
-        c_comm=max(n*config.option_commision_per_contract,config.option_min_ticket)
-        p_comm=max(n*config.option_commision_per_contract,config.option_min_ticket)
+        c_comm=max(n*config.option_commission_per_contract,config.option_min_ticket)
+        p_comm=max(n*config.option_commission_per_contract,config.option_min_ticket)
         commission=p_comm+c_comm
 
         c_mid=self._calculate_mid(row,"c")
@@ -71,8 +71,8 @@ class TransactionalCostModel:
 
         spread_cost=(c_spread+p_spread)*n*config.multiplier
 
-        c_comm=max(n*config.option_commision_per_contract,config.option_min_ticket)
-        p_comm=max(n*config.option_commision_per_contract,config.option_min_ticket)
+        c_comm=max(n*config.option_commission_per_contract,config.option_min_ticket)
+        p_comm=max(n*config.option_commission_per_contract,config.option_min_ticket)
         commission=p_comm+c_comm
 
         c_mid=self._calculate_mid(row,"c")

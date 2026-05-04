@@ -1,6 +1,7 @@
 from dataclasses import dataclass,field
 import pandas as pd
 from typing import Dict
+import numpy as np
 
 LOT_SIZE=100
 
@@ -24,6 +25,7 @@ class StraddlePosition:
     #Live Metrics
     current_price:float=field(init=False)
     current_spot:float=field(init=False)
+    current_iv:float=field(init=False)
     unrealized_pnl:float=field(init=False)
 
     #Greeks
@@ -65,14 +67,36 @@ class StraddlePosition:
         dt=1/252 # assuming daily steps
 
         # We calculate attribution to check if our greeks explain price movement 
-        self.attribution['delta_pnl']+=self.side * self.delta * ds * self.quantity * LOT_SIZE
-        self.attribution['gamma_pnl']+=self.side * 0.5 * self.gamma * (ds**2) * self.quantity * LOT_SIZE
-        self.attribution['theta_pnl']+=self.side * self.theta * dt * self.quantity * LOT_SIZE
+        delta_chg=self.side * self.delta * ds * self.quantity * LOT_SIZE
+        gamma_chg=self.side * 0.5 * self.gamma * (ds**2) * self.quantity * LOT_SIZE
+        theta_chg=self.side * self.theta * dt * self.quantity * LOT_SIZE
+       
+
+        c_iv = float(row.get('c_iv', np.nan))
+        p_iv = float(row.get('p_iv', np.nan))
+        if np.isfinite(c_iv) and np.isfinite(p_iv):
+            new_iv = (c_iv + p_iv) / 2.0
+        elif np.isfinite(c_iv):
+            new_iv = c_iv
+        elif np.isfinite(p_iv):
+            new_iv = p_iv
+        else:
+            new_iv = self.current_iv   # no IV data → no vega attribution this bar
+ 
+        div = new_iv - self.current_iv  # change in implied vol (annualised decimal)
+        vega_chg = self.side * self.vega * div * self.quantity * LOT_SIZE
+
+        self.attribution['delta_pnl'] += delta_chg
+        self.attribution['gamma_pnl'] += gamma_chg
+        self.attribution['theta_pnl'] += theta_chg
+        self.attribution['vega_pnl']  += vega_chg 
+
 
         #update state
         self.current_price=new_price
         self.current_spot=new_spot
         self.unrealized_pnl+=total_pnl_change
+        self.current_iv=new_iv
 
         #Refresh greeks for next bars attibution
         self.delta=float(row.get('c_delta',0.0)+row.get('p_delta',0.0))
@@ -112,14 +136,33 @@ class PositionManager:
 
         if c_price==0 and p_price==0:
             raise ValueError(f"Zero price detected for {self.ticker} on {row['quote_date']}. Data gap?")   
+        
+        side=int(row.get("position",0))
+        if side not in [1,-1]:
+            raise ValueError(f"row['position'] must be 1 or -1 before calling create_straddle, got {side}. "
+            "Set entry_row['position'] = int(signal_row['position']) before this call."
+            )
 
-        return StraddlePosition(
+        pos:StraddlePosition= StraddlePosition(
             ticker=self.ticker,
             entry_date=row.get('quote_date',0),
-            expiry=row.get('expiry',0),
+            expiry=row.get('expire_date',0),
             strike=row.get('strike',0),
             side=row.get('position',0),
             quantity=quantity,
             entry_price=c_price+p_price,
             entry_spot=row.get('underlying_last',0)
         )
+        c_iv=float(row.get('c_iv',np.nan))
+        p_iv=float(row.get('p_iv',np.nan))
+
+        if np.infinite(c_iv) and np.isfinite(p_iv):
+            entry_iv=(p_iv+c_iv)/2.0
+        elif np.isfinite(p_iv):
+            entry_iv=p_iv
+        elif np.isfinite(c_iv):
+            entry_iv=c_iv
+        else:
+            entry_iv=0.0
+        pos.current_iv=entry_iv
+        return pos
