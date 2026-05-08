@@ -151,7 +151,7 @@ class volSignalEngine:
                                       np.where(group['c_iv'].notna(),group['c_iv'],group['p_iv']))
             
             near_slice = group[group['dte'].between(20,30)]['iv_temp'].dropna()
-            far_slice = group[group['dte'].between(45,90)]['iv_temp'].dropna()
+            far_slice = group[group['dte'].between(45,60)]['iv_temp'].dropna()
 
             near_iv = near_slice.mean() if not near_slice.empty else np.nan
             far_iv = far_slice.mean() if not far_slice.empty else np.nan

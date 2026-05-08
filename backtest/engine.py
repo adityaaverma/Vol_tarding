@@ -52,7 +52,7 @@ class VolBacktest:
 
             # 1. Exit Logic
             if self._portfolio.position is not None:
-                should_exit = (signal_row.get('exit_signal',0)==1 or self._check_stop())
+                should_exit = (signal_row.get('exit_flag',0)==1 or self._check_stop())
                 if should_exit:
                     pos=self._portfolio.position
                     try:    
@@ -67,12 +67,12 @@ class VolBacktest:
 
                     if self._portfolio.shares!=0:
                         self._portfolio.apply_hedge(-self._portfolio.shares,spot)
-                        
+
                     just_exited=True
             
             # 2. ENtry Logic
             if self._portfolio.position is None and signal_row.get('entry_flag',0)==1:
-                raw_side=int(signal_row.get('position'),0)
+                raw_side=int(signal_row.get('position',0))
                 if raw_side not in [1,-1]:
                     logger.warning(f"Skipping entry on {date}: invalid side value {raw_side}.")
                 else:

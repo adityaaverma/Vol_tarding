@@ -156,7 +156,7 @@ class PositionManager:
         c_iv=float(row.get('c_iv',np.nan))
         p_iv=float(row.get('p_iv',np.nan))
 
-        if np.infinite(c_iv) and np.isfinite(p_iv):
+        if np.isfinite(c_iv) and np.isfinite(p_iv):
             entry_iv=(p_iv+c_iv)/2.0
         elif np.isfinite(p_iv):
             entry_iv=p_iv

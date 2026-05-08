@@ -114,16 +114,17 @@ def plot_results(results_df: pd.DataFrame) -> None:
 def main() -> None:
     logger.info("Initializing Volatility Backtest")
 
-    data_path = r"data\dte90.csv"
+    data_path = r"data\SPY_Optionsdata(2019-22).csv"
     if not os.path.exists(data_path):
         logger.error(f"Data file not found at {data_path}.")
         return
 
     # ── 1. Data pipeline ──────────────────────────────────────────────────────
     options_df = load_data(data_path)
+    signal_source_df = options_df[(options_df["c_iv"].notna()) & (options_df["p_iv"].notna())].copy()
 
     logger.info("Running Signal Pipeline (IV vs RV extraction)...")
-    signals_df = run_signal_pipeline(options_df)
+    signals_df = run_signal_pipeline(signal_source_df)
 
     logger.info("Applying Trade Rules (Liquidity, Lags, Cooldowns)...")
     rule_config = RuleConfig(execution_lag=1, min_liquidity=0.5, allow_flip=False)
