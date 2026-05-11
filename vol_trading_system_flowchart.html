@@ -1,272 +1,433 @@
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vol Trading System &mdash; Architecture Reference</title>
 <style>
-#det{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px;min-height:76px;margin-top:10px;transition:background .15s}
-.fr{display:flex;gap:10px;padding:6px 0;border-bottom:0.5px solid var(--color-border-tertiary);align-items:flex-start}
-.fr:last-child{border-bottom:none}
-.fc{font-family:var(--font-mono);font-size:11px;color:var(--color-text-info);min-width:190px;flex-shrink:0;line-height:1.55;padding-top:1px}
-.fd{font-size:12px;color:var(--color-text-secondary);line-height:1.55}
-.badge{font-family:var(--font-mono);font-size:11px;background:var(--color-background-info);color:var(--color-text-info);padding:2px 7px;border-radius:4px;margin-left:6px}
-.stag{font-size:10px;color:var(--color-text-tertiary);background:var(--color-background-tertiary);border-radius:3px;padding:1px 5px;margin-right:3px;flex-shrink:0;white-space:nowrap}
+:root{
+  --bg:#ffffff;--bg2:#f9fafb;--bg3:#f3f4f6;
+  --b1:#e5e7eb;--b2:#d1d5db;--b3:#9ca3af;
+  --t1:#111827;--t2:#374151;--t3:#6b7280;--t4:#9ca3af;
+  --acc:#2563eb;
+  --mono:'Courier New','Lucida Console',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --r:8px;--rl:12px;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#141414;--bg2:#1e1e1e;--bg3:#282828;
+    --b1:#2c2c2c;--b2:#3c3c3c;--b3:#505050;
+    --t1:#f0f0f0;--t2:#c8c8c8;--t3:#909090;--t4:#606060;
+    --acc:#60a5fa;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--t1);padding:36px 24px 80px;min-height:100vh;-webkit-font-smoothing:antialiased}
+
+.hdr{text-align:center;margin-bottom:32px}
+.hdr h1{font-size:21px;font-weight:600;color:var(--t1);margin-bottom:6px;letter-spacing:-.01em}
+.hdr p{font-size:13px;color:var(--t3);line-height:1.5}
+
+.wrap{max-width:820px;margin:0 auto}
+
+/* ── Phase boxes ─────────────────────────────────────── */
+.ph{border-radius:var(--rl);padding:14px 24px;text-align:center;cursor:pointer;border:1.5px solid transparent;
+    transition:opacity .15s,transform .1s;user-select:none;outline:none}
+.ph:hover{opacity:.87;transform:translateY(-1px)}
+.ph:focus-visible,.ph.sel{outline:2.5px solid var(--acc);outline-offset:2px}
+.ph-h{font-size:14px;font-weight:600;line-height:1.3}
+.ph-s{font-size:11px;font-family:var(--mono);margin-top:3px;opacity:.68}
+
+/* Color ramps — light */
+.c-gr{background:#f3f4f6;border-color:#9ca3af}
+.c-gr .ph-h{color:#374151}.c-gr .ph-s{color:#6b7280}
+.c-te{background:#ecfdf5;border-color:#10b981}
+.c-te .ph-h{color:#065f46}.c-te .ph-s{color:#059669}
+.c-bl{background:#eff6ff;border-color:#3b82f6}
+.c-bl .ph-h{color:#1d4ed8}.c-bl .ph-s{color:#3b82f6}
+.c-gn{background:#f0fdf4;border-color:#4ade80}
+.c-gn .ph-h,.c-gn .sat-h{color:#166534}
+.c-gn .ph-s,.c-gn .sat-s{color:#16a34a}
+.c-co{background:#fff7ed;border-color:#fb923c}
+.c-co .ph-h,.c-co .sat-h{color:#7c2d12}
+.c-co .ph-s,.c-co .sat-s{color:#ea580c}
+.c-am{background:#fffbeb;border-color:#f59e0b}
+.c-am .ph-h{color:#78350f}.c-am .ph-s{color:#b45309}
+
+/* Dark overrides */
+@media(prefers-color-scheme:dark){
+  .c-gr{background:#222;border-color:#4b5563}
+  .c-gr .ph-h{color:#e5e7eb}.c-gr .ph-s{color:#9ca3af}
+  .c-te{background:#022c22;border-color:#059669}
+  .c-te .ph-h{color:#6ee7b7}.c-te .ph-s{color:#34d399}
+  .c-bl{background:#0d1b36;border-color:#1d4ed8}
+  .c-bl .ph-h{color:#93c5fd}.c-bl .ph-s{color:#60a5fa}
+  .c-gn{background:#052e16;border-color:#15803d}
+  .c-gn .ph-h,.c-gn .sat-h{color:#86efac}
+  .c-gn .ph-s,.c-gn .sat-s{color:#4ade80}
+  .c-co{background:#1c0a00;border-color:#c2410c}
+  .c-co .ph-h,.c-co .sat-h{color:#fdba74}
+  .c-co .ph-s,.c-co .sat-s{color:#fb923c}
+  .c-am{background:#1c1000;border-color:#b45309}
+  .c-am .ph-h{color:#fcd34d}.c-am .ph-s{color:#f59e0b}
+}
+
+/* ── Arrows ───────────────────────────────────────────── */
+.dn{text-align:center;color:var(--t4);font-size:20px;line-height:30px;user-select:none;letter-spacing:0}
+
+/* ── Engine row layout ───────────────────────────────── */
+.erow{display:flex;gap:8px;align-items:stretch}
+
+.sleft{display:flex;flex-direction:column;gap:7px;width:150px;flex-shrink:0}
+.sright{display:flex;flex-direction:column;gap:7px;width:160px;flex-shrink:0}
+
+.sat{border-radius:var(--r);padding:10px 11px;text-align:center;cursor:pointer;
+     border:1.5px solid transparent;transition:opacity .15s;
+     flex:1;display:flex;flex-direction:column;justify-content:center;outline:none}
+.sat:hover{opacity:.87}
+.sat:focus-visible,.sat.sel{outline:2px solid var(--acc);outline-offset:2px}
+.sat-h{font-size:13px;font-weight:600;line-height:1.2}
+.sat-s{font-size:10px;font-family:var(--mono);margin-top:3px;opacity:.68}
+
+.conn{display:flex;flex-direction:column;justify-content:space-around;align-items:center;
+      width:20px;flex-shrink:0;color:var(--t4);font-size:15px;font-weight:600;padding:4px 0}
+
+/* ── Engine center box ───────────────────────────────── */
+.eng{flex:1;background:#eff6ff;border:2px solid #3b82f6;border-radius:var(--rl);
+     overflow:hidden;cursor:pointer;transition:opacity .15s;outline:none}
+.eng:hover{opacity:.95}
+.eng:focus-visible,.eng.sel{outline:2.5px solid var(--acc);outline-offset:2px}
+
+.eng-top{padding:12px 16px;text-align:center}
+.eng-top .e-h{font-size:14px;font-weight:600;color:#1d4ed8}
+.eng-top .e-s{font-size:11px;font-family:var(--mono);color:#3b82f6;margin-top:3px}
+
+.ediv{height:1px;background:#bfdbfe}
+
+.esteps{display:flex;gap:6px;padding:9px 10px;background:rgba(255,255,255,.6)}
+.step{flex:1;background:#dbeafe;border:1px solid #93c5fd;border-radius:6px;
+      padding:8px 3px;text-align:center;cursor:pointer;transition:filter .12s;user-select:none}
+.step:hover{filter:brightness(.89)}
+.sn{font-size:13px;font-weight:700;color:#1e40af}
+.sl{font-size:10px;color:#3b82f6;margin-top:2px}
+
+.eloop{text-align:center;font-size:10px;color:#93c5fd;padding:5px 0 7px;background:rgba(255,255,255,.6)}
+
+@media(prefers-color-scheme:dark){
+  .eng{background:#0c1a30;border-color:#1d4ed8}
+  .eng-top .e-h{color:#93c5fd}.eng-top .e-s{color:#60a5fa}
+  .ediv{background:#1a3050}
+  .esteps{background:rgba(10,20,40,.75)}
+  .step{background:#1a3050;border-color:#1d4ed8}
+  .sn{color:#93c5fd}.sl{color:#60a5fa}
+  .eloop{background:rgba(10,20,40,.75);color:#2d5a9a}
+}
+
+/* ── Legend ──────────────────────────────────────────── */
+.leg{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:16px;
+     font-size:11px;color:var(--t3)}
+.leg span{display:flex;align-items:center;gap:5px}
+.dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+/* ── Detail panel ────────────────────────────────────── */
+#det{margin-top:26px;background:var(--bg2);border:1px solid var(--b1);
+     border-radius:var(--rl);padding:22px 26px;min-height:86px}
+.det-ph{font-size:13px;color:var(--t4);text-align:center;padding:10px 0}
+.det-hdr{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-bottom:11px}
+.det-title{font-size:17px;font-weight:600;color:var(--t1)}
+.det-file{font-family:var(--mono);font-size:11px;background:#dbeafe;color:#1d4ed8;
+          padding:3px 10px;border-radius:4px;flex-shrink:0}
+@media(prefers-color-scheme:dark){.det-file{background:#1a3050;color:#93c5fd}}
+.det-sum{font-size:13.5px;color:var(--t2);line-height:1.68;margin-bottom:18px;
+         padding-left:14px;border-left:3px solid var(--b2)}
+.fn-tbl{width:100%;border-collapse:collapse}
+.fn-tr{border-bottom:1px solid var(--b1)}
+.fn-tr:last-child{border-bottom:none}
+.fn-tr td{padding:10px 0;vertical-align:top}
+.fn-tag{font-size:10px;background:var(--bg3);color:var(--t3);border-radius:3px;
+        padding:1px 7px;white-space:nowrap;display:inline-block;margin-bottom:4px}
+.fn-code{font-family:var(--mono);font-size:12px;color:#2563eb;
+         width:230px;min-width:230px;padding-right:18px;word-break:break-word;line-height:1.65}
+@media(prefers-color-scheme:dark){.fn-code{color:#60a5fa}}
+.fn-desc{font-size:13px;color:var(--t2);line-height:1.68}
 </style>
+</head>
+<body>
 
-<svg width="100%" viewBox="0 0 680 590" role="img">
-<title>Vol trading system — full pipeline architecture</title>
-<desc>Interactive flowchart showing the complete pipeline: data input to signal engine to trade rules to backtest engine loop (exit, entry, mark, hedge) with supporting portfolio, position, sizer, delta hedge and cost model modules, then performance metrics and chart output.</desc>
-<defs>
-<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-</marker>
-</defs>
-
-<!-- vertical pipeline arrows (cx=340) -->
-<line x1="340" y1="68" x2="340" y2="94" class="arr" marker-end="url(#arr)"/>
-<line x1="340" y1="148" x2="340" y2="174" class="arr" marker-end="url(#arr)"/>
-<line x1="340" y1="228" x2="340" y2="254" class="arr" marker-end="url(#arr)"/>
-<line x1="340" y1="387" x2="340" y2="413" class="arr" marker-end="url(#arr)"/>
-<line x1="340" y1="467" x2="340" y2="493" class="arr" marker-end="url(#arr)"/>
-
-<!-- left satellite: bidirectional -->
-<line x1="161" y1="296" x2="214" y2="296" class="arr" marker-start="url(#arr)" marker-end="url(#arr)"/>
-<line x1="161" y1="354" x2="214" y2="354" class="arr" marker-start="url(#arr)" marker-end="url(#arr)"/>
-
-<!-- right satellite: → into engine -->
-<line x1="479" y1="282" x2="466" y2="282" class="arr" marker-end="url(#arr)"/>
-<line x1="479" y1="325" x2="466" y2="325" class="arr" marker-end="url(#arr)"/>
-<line x1="479" y1="368" x2="466" y2="368" class="arr" marker-end="url(#arr)"/>
-
-<!-- ① DATA -->
-<g class="node c-gray" onclick="show('data')">
-<rect x="215" y="16" width="250" height="52" rx="8" stroke-width="0.5"/>
-<text class="th" x="340" y="33" text-anchor="middle" dominant-baseline="central">Data input</text>
-<text class="ts" x="340" y="52" text-anchor="middle" dominant-baseline="central">load_data() · run_backtest.py</text>
-</g>
-
-<!-- ② SIGNAL -->
-<g class="node c-teal" onclick="show('signal')">
-<rect x="215" y="96" width="250" height="52" rx="8" stroke-width="0.5"/>
-<text class="th" x="340" y="113" text-anchor="middle" dominant-baseline="central">Signal engine</text>
-<text class="ts" x="340" y="132" text-anchor="middle" dominant-baseline="central">volSignalEngine · signal.py</text>
-</g>
-
-<!-- ③ RULES -->
-<g class="node c-teal" onclick="show('rules')">
-<rect x="215" y="176" width="250" height="52" rx="8" stroke-width="0.5"/>
-<text class="th" x="340" y="193" text-anchor="middle" dominant-baseline="central">Trade rules</text>
-<text class="ts" x="340" y="212" text-anchor="middle" dominant-baseline="central">VolTradeRules · rules.py</text>
-</g>
-
-<!-- ④ ENGINE (c-blue, clickable header) -->
-<g class="node c-blue" onclick="show('engine')">
-<rect x="215" y="256" width="250" height="131" rx="8" stroke-width="0.5"/>
-<text class="th" x="340" y="273" text-anchor="middle" dominant-baseline="central">Backtest engine</text>
-<text class="ts" x="340" y="290" text-anchor="middle" dominant-baseline="central">VolBacktest · engine.py</text>
-</g>
-<!-- separator inside engine -->
-<line x1="222" y1="301" x2="458" y2="301" stroke="var(--color-border-secondary)" stroke-width="0.5"/>
-<!-- 4 step boxes (drawn over engine fill, each clickable) -->
-<g onclick="show('engine')" style="cursor:pointer">
-<rect x="225" y="309" width="48" height="38" rx="4" fill="var(--color-background-primary)" stroke="var(--color-border-secondary)" stroke-width="0.5"/>
-<text class="th" x="249" y="322" text-anchor="middle" dominant-baseline="central">1</text>
-<text class="ts" x="249" y="337" text-anchor="middle" dominant-baseline="central">Exit</text>
-</g>
-<g onclick="show('engine')" style="cursor:pointer">
-<rect x="285" y="309" width="48" height="38" rx="4" fill="var(--color-background-primary)" stroke="var(--color-border-secondary)" stroke-width="0.5"/>
-<text class="th" x="309" y="322" text-anchor="middle" dominant-baseline="central">2</text>
-<text class="ts" x="309" y="337" text-anchor="middle" dominant-baseline="central">Entry</text>
-</g>
-<g onclick="show('engine')" style="cursor:pointer">
-<rect x="345" y="309" width="48" height="38" rx="4" fill="var(--color-background-primary)" stroke="var(--color-border-secondary)" stroke-width="0.5"/>
-<text class="th" x="369" y="322" text-anchor="middle" dominant-baseline="central">3</text>
-<text class="ts" x="369" y="337" text-anchor="middle" dominant-baseline="central">Mark</text>
-</g>
-<g onclick="show('engine')" style="cursor:pointer">
-<rect x="405" y="309" width="48" height="38" rx="4" fill="var(--color-background-primary)" stroke="var(--color-border-secondary)" stroke-width="0.5"/>
-<text class="th" x="429" y="322" text-anchor="middle" dominant-baseline="central">4</text>
-<text class="ts" x="429" y="337" text-anchor="middle" dominant-baseline="central">Hedge</text>
-</g>
-<!-- step sequence arrows -->
-<line x1="275" y1="328" x2="283" y2="328" stroke="var(--color-text-tertiary)" stroke-width="1" marker-end="url(#arr)"/>
-<line x1="335" y1="328" x2="343" y2="328" stroke="var(--color-text-tertiary)" stroke-width="1" marker-end="url(#arr)"/>
-<line x1="395" y1="328" x2="403" y2="328" stroke="var(--color-text-tertiary)" stroke-width="1" marker-end="url(#arr)"/>
-<!-- loop label -->
-<text class="ts" x="340" y="363" text-anchor="middle" dominant-baseline="central">repeats for every signal bar</text>
-
-<!-- ⑤ PERFORMANCE -->
-<g class="node c-amber" onclick="show('performance')">
-<rect x="215" y="415" width="250" height="52" rx="8" stroke-width="0.5"/>
-<text class="th" x="340" y="432" text-anchor="middle" dominant-baseline="central">Performance metrics</text>
-<text class="ts" x="340" y="451" text-anchor="middle" dominant-baseline="central">compute_performance() · performace.py</text>
-</g>
-
-<!-- ⑥ OUTPUT -->
-<g class="node c-amber" onclick="show('output')">
-<rect x="215" y="495" width="250" height="52" rx="8" stroke-width="0.5"/>
-<text class="th" x="340" y="512" text-anchor="middle" dominant-baseline="central">Chart output</text>
-<text class="ts" x="340" y="531" text-anchor="middle" dominant-baseline="central">plot_results() · run_backtest.py</text>
-</g>
-
-<!-- LEFT: Portfolio -->
-<g class="node c-green" onclick="show('portfolio')">
-<rect x="15" y="271" width="146" height="50" rx="6" stroke-width="0.5"/>
-<text class="th" x="88" y="288" text-anchor="middle" dominant-baseline="central">Portfolio</text>
-<text class="ts" x="88" y="306" text-anchor="middle" dominant-baseline="central">portfolio.py</text>
-</g>
-<!-- LEFT: Position -->
-<g class="node c-green" onclick="show('position')">
-<rect x="15" y="329" width="146" height="50" rx="6" stroke-width="0.5"/>
-<text class="th" x="88" y="346" text-anchor="middle" dominant-baseline="central">Position</text>
-<text class="ts" x="88" y="364" text-anchor="middle" dominant-baseline="central">position.py</text>
-</g>
-
-<!-- RIGHT: Vol sizer -->
-<g class="node c-coral" onclick="show('sizing')">
-<rect x="480" y="263" width="158" height="38" rx="6" stroke-width="0.5"/>
-<text class="th" x="559" y="275" text-anchor="middle" dominant-baseline="central">Vol sizer</text>
-<text class="ts" x="559" y="292" text-anchor="middle" dominant-baseline="central">sizing.py</text>
-</g>
-<!-- RIGHT: Delta hedge -->
-<g class="node c-coral" onclick="show('hedge_engine')">
-<rect x="480" y="308" width="158" height="38" rx="6" stroke-width="0.5"/>
-<text class="th" x="559" y="320" text-anchor="middle" dominant-baseline="central">Delta hedge</text>
-<text class="ts" x="559" y="337" text-anchor="middle" dominant-baseline="central">delta_hedge.py</text>
-</g>
-<!-- RIGHT: Cost model -->
-<g class="node c-coral" onclick="show('costs')">
-<rect x="480" y="353" width="158" height="38" rx="6" stroke-width="0.5"/>
-<text class="th" x="559" y="365" text-anchor="middle" dominant-baseline="central">Cost model</text>
-<text class="ts" x="559" y="382" text-anchor="middle" dominant-baseline="central">transactions_costs.py</text>
-</g>
-
-<!-- legend -->
-<circle cx="180" cy="568" r="5" class="c-gray"/>
-<text class="ts" x="189" y="568" dominant-baseline="central">data</text>
-<circle cx="228" cy="568" r="5" class="c-teal"/>
-<text class="ts" x="237" y="568" dominant-baseline="central">strategy</text>
-<circle cx="302" cy="568" r="5" class="c-blue"/>
-<text class="ts" x="311" y="568" dominant-baseline="central">engine</text>
-<circle cx="362" cy="568" r="5" class="c-green"/>
-<text class="ts" x="371" y="568" dominant-baseline="central">state</text>
-<circle cx="415" cy="568" r="5" class="c-coral"/>
-<text class="ts" x="424" y="568" dominant-baseline="central">execution</text>
-<circle cx="497" cy="568" r="5" class="c-amber"/>
-<text class="ts" x="506" y="568" dominant-baseline="central">analytics</text>
-</svg>
-
-<div id="det">
-  <p style="color:var(--color-text-secondary);font-size:13px;text-align:center;margin:4px 0">Click any module above to explore its functions</p>
+<div class="hdr">
+  <h1>Vol Trading System</h1>
+  <p>Pipeline architecture reference &mdash; click any module to explore its functions</p>
 </div>
+
+<div class="wrap">
+
+  <!-- DATA -->
+  <div class="ph c-gr" id="n-data" onclick="show('data')" tabindex="0">
+    <div class="ph-h">Data input</div>
+    <div class="ph-s">load_data() &middot; run_backtest.py</div>
+  </div>
+  <div class="dn">&#8595;</div>
+
+  <!-- SIGNAL -->
+  <div class="ph c-te" id="n-signal" onclick="show('signal')" tabindex="0">
+    <div class="ph-h">Signal engine</div>
+    <div class="ph-s">volSignalEngine &middot; signal.py</div>
+  </div>
+  <div class="dn">&#8595;</div>
+
+  <!-- RULES -->
+  <div class="ph c-te" id="n-rules" onclick="show('rules')" tabindex="0">
+    <div class="ph-h">Trade rules</div>
+    <div class="ph-s">VolTradeRules &middot; rules.py</div>
+  </div>
+  <div class="dn">&#8595;</div>
+
+  <!-- ENGINE ROW -->
+  <div class="erow">
+
+    <!-- left: state modules -->
+    <div class="sleft">
+      <div class="sat c-gn" id="n-portfolio" onclick="show('portfolio')" tabindex="0">
+        <div class="sat-h">Portfolio</div>
+        <div class="sat-s">portfolio.py</div>
+      </div>
+      <div class="sat c-gn" id="n-position" onclick="show('position')" tabindex="0">
+        <div class="sat-h">Position</div>
+        <div class="sat-s">position.py</div>
+      </div>
+    </div>
+
+    <!-- left connector: bidirectional -->
+    <div class="conn">
+      <span title="read and write">&#8596;</span>
+      <span title="read and write">&#8596;</span>
+    </div>
+
+    <!-- engine center -->
+    <div class="eng" id="n-engine" onclick="show('engine')" tabindex="0">
+      <div class="eng-top">
+        <div class="e-h">Backtest engine</div>
+        <div class="e-s">VolBacktest &middot; engine.py</div>
+      </div>
+      <div class="ediv"></div>
+      <div class="esteps">
+        <div class="step" onclick="event.stopPropagation();show('engine')">
+          <div class="sn">1</div><div class="sl">Exit</div>
+        </div>
+        <div class="step" onclick="event.stopPropagation();show('engine')">
+          <div class="sn">2</div><div class="sl">Entry</div>
+        </div>
+        <div class="step" onclick="event.stopPropagation();show('engine')">
+          <div class="sn">3</div><div class="sl">Mark</div>
+        </div>
+        <div class="step" onclick="event.stopPropagation();show('engine')">
+          <div class="sn">4</div><div class="sl">Hedge</div>
+        </div>
+      </div>
+      <div class="eloop">&#8635; repeats for every signal bar</div>
+    </div>
+
+    <!-- right connector: one-way into engine -->
+    <div class="conn">
+      <span title="feeds into engine">&#8592;</span>
+      <span title="feeds into engine">&#8592;</span>
+      <span title="feeds into engine">&#8592;</span>
+    </div>
+
+    <!-- right: execution support -->
+    <div class="sright">
+      <div class="sat c-co" id="n-sizing" onclick="show('sizing')" tabindex="0">
+        <div class="sat-h">Vol sizer</div>
+        <div class="sat-s">sizing.py</div>
+      </div>
+      <div class="sat c-co" id="n-hedge_engine" onclick="show('hedge_engine')" tabindex="0">
+        <div class="sat-h">Delta hedge</div>
+        <div class="sat-s">delta_hedge.py</div>
+      </div>
+      <div class="sat c-co" id="n-costs" onclick="show('costs')" tabindex="0">
+        <div class="sat-h">Cost model</div>
+        <div class="sat-s">transactions_costs.py</div>
+      </div>
+    </div>
+
+  </div><!-- end erow -->
+  <div class="dn">&#8595;</div>
+
+  <!-- PERFORMANCE -->
+  <div class="ph c-am" id="n-performance" onclick="show('performance')" tabindex="0">
+    <div class="ph-h">Performance metrics</div>
+    <div class="ph-s">compute_performance() &middot; performace.py</div>
+  </div>
+  <div class="dn">&#8595;</div>
+
+  <!-- OUTPUT -->
+  <div class="ph c-am" id="n-output" onclick="show('output')" tabindex="0">
+    <div class="ph-h">Chart output</div>
+    <div class="ph-s">plot_results() &middot; run_backtest.py</div>
+  </div>
+
+  <!-- legend -->
+  <div class="leg">
+    <span><div class="dot" style="background:#9ca3af"></div>Data</span>
+    <span><div class="dot" style="background:#10b981"></div>Strategy</span>
+    <span><div class="dot" style="background:#3b82f6"></div>Engine</span>
+    <span><div class="dot" style="background:#4ade80"></div>State</span>
+    <span><div class="dot" style="background:#fb923c"></div>Execution</span>
+    <span><div class="dot" style="background:#f59e0b"></div>Analytics</span>
+  </div>
+
+  <!-- detail panel -->
+  <div id="det">
+    <div class="det-ph">Click any module above to explore its functions</div>
+  </div>
+
+</div><!-- end .wrap -->
 
 <script>
 const D = {
-  data:{l:'Data input',f:'run_backtest.py',
-    s:'Entry point for the whole system. Reads the raw options chain CSV and orchestrates every subsequent stage.',
-    fns:[
-      ['load_data(filepath)','Reads CSV via pd.read_csv; casts quote_date and expire_date to datetime64; returns a flat options DataFrame with all strikes and expiries.'],
-      ['main()','Top-level orchestrator. Calls: load_data → run_signal_pipeline → run_rules → configure (Sizer/Hedger/Costs/Backtest) → VolBacktest.run() → compute_performance → plot_results.'],
-    ]},
-  signal:{l:'Signal engine',f:'signal.py',
-    s:'Produces a composite score (out) from 6 weighted market features. Positive = rich implied vol (sell straddles); negative = cheap (buy). Signal mode can be inverted via config.',
-    fns:[
-      ['run_signal_pipeline(data)','Entry point. Adds moneyness and abs_moneyness columns, instantiates volSignalEngine, calls compute_features().'],
-      ['compute_features(data)','Master method: calls all sub-engines → assembles dailyData → computes contributions → appends signal columns. Returns final DataFrame.'],
-      ['_compute_term_structure_score()','Groups by date, slices near (20-30 DTE) and far (45-90 DTE) contracts, returns far_IV − near_IV = raw term slope. Positive = normal contango.'],
-      ['_compute_skew()','OTM put IV minus OTM call IV within 5% moneyness. Positive skew = put buyers paying up = bearish hedging demand.'],
-      ['_compute_regime_score(rv)','Returns −tanh(RV_z / 2). High realized vol → negative score → penalizes short-vol trades during turbulent regimes.'],
-      ['_compute_liquidity_score()','Sigmoid of the average of (log-volume z-score) and (inverse-spread z-score). Output range 0–1; 0.5 = neutral.'],
-      ['_compute_contributions()','Applies config weights (w_spread_z, w_skew, w_regime, …) to produce per-feature contribution columns for later attribution.'],
-      ['_generate_signal(out)','Stateful loop: long entry when out ≥ entry_z, exit when out falls below exit_z. short_rich_vol mode inverts the thresholds.'],
-    ]},
-  rules:{l:'Trade rules',f:'rules.py',
-    s:'Applies institutional execution constraints to the raw signal before it reaches the engine. All transformations are vectorized except the stateful path-dependent loop.',
-    fns:[
-      ['run_rules(df, config)','Creates VolTradeRules(config) and calls apply(df). Returns executable_signals with entry_flag / exit_flag / position columns.'],
-      ['validate(df)','Raises ValueError listing any missing columns from the 5 required: quote_date, out, signal, signal_side, signal_change.'],
-      ['apply(df)','Pipeline: (1) zero positions below min_liquidity score; (2) block direct flips if allow_flip=False; (3) shift entire position column by execution_lag (EOD signal → next-day trade); (4) call stateful rules.'],
-      ['_apply_stateful_rules(executed)','Bar-by-bar loop. Suppresses new entries within cooldown_days of an exit. Forces exit when days_held ≥ max_holding_days. Writes resolved position back to pos_arr.'],
-    ]},
-  engine:{l:'Backtest engine',f:'engine.py',
-    s:'Event-driven loop over every row of signals_df. Executes 4 ordered steps per bar and collects a snapshot dict that becomes a row in results_df.',
-    fns:[
-      ['[1 · Exit] exit_flag / _check_stop()','exit_flag=1 from rules triggers a close. _check_stop() also triggers if unrealized_pnl / entry_value ≤ −stop_loss_pct or ≥ +profit_take_pct.'],
-      ['[1 · Exit] portfolio.close_position(contract_data)','Fetches today\'s contract via options_df.loc[(date, strike, expiry)]. Prices close at adverse fill. Flushes greek attribution to realized buckets. Sets position=None.'],
-      ['[1 · Exit] portfolio.apply_hedge(−shares, spot)','Unwinds any residual delta-hedge shares at current spot price immediately after closing the option position.'],
-      ['[2 · Entry] select_strike() + sizer.calculate_quantity()','Fetches daily chain via xs(date). Picks the strike with |c_delta − 0.50| minimum. Calls VolSizer for contract count using mode (vega/vol/kelly).'],
-      ['[2 · Entry] create_straddle() + open_position()','Builds StraddlePosition — requires entry_row["position"]=±1 to be set before calling. Records premium cash flow and entry cost in Portfolio.'],
-      ['[3 · Mark] options_df.loc[(date, strike, expiry)]','MultiIndex lookup for current contract prices and greeks. KeyError (data gap) gracefully degrades to last known price.'],
-      ['[3 · Mark] portfolio.mark_to_market(contract_data)','Updates position MID price, runs Taylor attribution, updates unrealized PnL, returns the full bar snapshot dict.'],
-      ['[4 · Hedge] hedger.calculate_hedge_action(shares, delta, spot)','Returns HedgeAction: DAILY always rebalances to −delta; BAND only trades when |portfolio_delta| ≥ threshold; NONE skips.'],
-      ['[4 · Hedge] portfolio.apply_hedge(shares_to_trade, spot)','Executes the share trade, updates cash and weighted-avg cost, realizes partial/full hedge PnL if reducing.'],
-      ['_check_stop()','pnl_pct = unrealized_pnl / (entry_price × qty × 100). Returns True when pnl_pct ≤ −stop_loss_pct or ≥ +profit_take_pct.'],
-      ['_add_drawdown(df)','Vectorized: peak = cummax(nav); drawdown = (nav − peak) / peak. Appended to results_df after the loop completes.'],
-    ]},
-  portfolio:{l:'Portfolio',f:'portfolio.py',
-    s:'Single-strategy ledger. Tracks cash, delta-hedge shares, one open StraddlePosition, and all realized PnL buckets. Called by the engine every bar.',
-    fns:[
-      ['open_position(position, row)','Pays/receives straddle premium: (−side) × (c_price + p_price) × 100 × qty. Long pays, short receives. Deducts entry cost. Stores position reference.'],
-      ['close_position(row)','Adverse fills (long → bid, short → ask). Deducts close cost. Adds position.unrealized_pnl to _option_pnl. Flushes attribution dict into _delta/gamma/vega/theta_pnl buckets. Sets position=None.'],
-      ['apply_hedge(share_change, spot)','Buys/sells shares. Tracks weighted-avg cost via running total. Realizes PnL on partial/full close. Deducts equity transaction costs.'],
-      ['mark_to_market(row)','Calls position.mark_to_market(). Returns snapshot: cash, NAV, option/hedge/cost PnL cumulative totals, plus all 4 greek attribution columns.'],
-    ]},
-  position:{l:'Position',f:'position.py',
-    s:'StraddlePosition dataclass tracks live state (price, spot, IV, greeks) and computes bar PnL with Taylor attribution. PositionManager handles strike selection and construction.',
-    fns:[
-      ['StraddlePosition.__post_init__()','Validates side ∈ {1,−1} and qty > 0. Seeds current_price=entry_price, current_spot=entry_spot, current_iv (from entry row), unrealized_pnl=0.'],
-      ['mark_to_market(row)','Computes new MID = (bid+ask)/2. PnL change = side × (new_price − current_price) × qty × 100. Runs Taylor: δ·dS (delta), ½·Γ·dS² (gamma), V·dIV (vega), Θ·dt (theta). Refreshes greeks from row.'],
-      ['portfolio_delta  (property)','Returns delta × quantity × 100. This is the scaled dollar delta passed to DeltaHedgeEngine each bar.'],
-      ['PositionManager.select_strike()','Finds strike with minimum |c_delta − 0.50|. Falls back to nearest ATM by |(strike − spot)| if c_delta missing.'],
-      ['PositionManager.create_straddle(row, qty)','Validates row["position"]=±1. Resolves MID prices. Seeds current_iv from row c_iv/p_iv so first-bar vega attribution is non-zero. Returns StraddlePosition.'],
-    ]},
-  sizing:{l:'Vol sizer',f:'sizing.py',
-    s:'Computes contract quantity from one of three sizing modes, then applies three universal safety guards before returning.',
-    fns:[
-      ['calculate_quantity(row, signal_strength)','Calls mode sizer → clip to [min_contracts, max_contracts] → notional cap (max_notional_pct × portfolio_value) → floor to whole contracts. Returns float.'],
-      ['_vega_size(row)','qty = target_vega_usd / (total_vega × 100). Targets a fixed $ sensitivity to a 1-vol-point IV move. Safe: returns min_contracts if vega < 0.001.'],
-      ['_vol_target_size(row)','qty = (portfolio_value × target_vol / √252) / (total_vega_usd × IV / √252). Targets annualised portfolio volatility contribution from this position.'],
-      ['_kelly_size(signal_strength)','f* = (p·b − q)/b. Scaled by kelly_fraction × tanh(|signal_strength|). signal_strength is the raw composite out score from the signal engine.'],
-    ]},
-  hedge_engine:{l:'Delta hedge engine',f:'delta_hedge.py',
-    s:'Calculates the shares_to_trade needed to keep portfolio delta near zero each bar. Three operating modes selectable at config time.',
-    fns:[
-      ['calculate_hedge_action(shares, delta, spot, is_closing)','is_closing=True → trade −current_shares (full unwind). DAILY → always rebalance to target=−delta. BAND → only trade when |portfolio_delta| ≥ threshold. NONE → skip.'],
-      ['_compute_hedge_cost(shares, spot)','cost = |shares| × (hedge_cost_per_share + slippage_pct × spot). abs() is critical: sell orders have negative share_change but positive cost.'],
-    ]},
-  costs:{l:'Cost model',f:'transactions_costs.py',
-    s:'Models all trading frictions. Called by Portfolio on every open, close, and hedge trade. All costs deducted from cash and accumulated in _total_costs.',
-    fns:[
-      ['option_open_cost(row, qty, side)','half_spread × 2 legs × qty × 100  +  max(qty × commission, min_ticket) per leg × 2  +  slippage_pct × mid_straddle × qty × 100.'],
-      ['option_close_cost(row, qty, side)','Same structure as open cost, plus SEC fee (8/1M × notional) when side=1 (long straddle close = sell-to-close, which triggers the fee).'],
-      ['equity_cost(shares, spot)','commission + slippage + SEC fee (8/1M × notional) + FINRA TAF (capped at $7.27) — last two only on sales (shares < 0).'],
-      ['_calculate_half_spread(row, leg)','Returns (ask − bid) / 2. Logs a debug warning and returns fallback_spread / 2 if bid or ask is NaN / missing.'],
-    ]},
-  performance:{l:'Performance metrics',f:'performace.py',
-    s:'Computes the full tear sheet from the results DataFrame returned by VolBacktest.run(). Returns a pd.Series so it\'s easy to compare across runs.',
-    fns:[
-      ['compute_performance(results)','Returns: total_return_pct, cagr_pct, ann_vol_pct, sharpe, sortino, calmar, max_drawdown_pct, avg_drawdown_pct, option/hedge/cost PnL totals, cost_drag, hedge_efficiency, plus all trade stats.'],
-      ['_trade_statistics(results)','Detects entry/exit bars from diff of has_position. Computes win_rate = wins / num_trades (not wins / num_bars — fixed bug). Returns profit_factor, avg_win, avg_loss, avg_holding_days.'],
-    ]},
-  output:{l:'Chart output',f:'run_backtest.py',
-    s:'Generates a 3-panel matplotlib dashboard saved to logs/backtest_results.png and displayed. Also prints a formatted tear sheet to stdout.',
-    fns:[
-      ['plot_results(results_df)','Panel 1: NAV curve with above/below-baseline fill. Panel 2: cumulative option PnL / hedge PnL / −costs. Panel 3: cumulative delta / gamma / vega / theta PnL (greek attribution).'],
-      ['main() — tear sheet print','Prints: total return, CAGR, ann vol, Sharpe, Sortino, Calmar, max DD, option/hedge/cost PnL, hedge efficiency, num trades, win rate, profit factor, avg holding days. Greek attribution summary at end.'],
-    ]},
+  data: {
+    l: "Data input", f: "run_backtest.py",
+    s: "Entry point for the whole system. Reads the raw options chain CSV, parses date columns, and orchestrates every subsequent stage.",
+    fns: [
+      [null, "load_data(filepath)", "Reads the CSV via pd.read_csv; casts quote_date and expire_date to datetime64. Returns a flat DataFrame containing all strikes and expiries for the full options chain."],
+      [null, "main()", "Top-level orchestrator. Calls in order: load_data &rarr; run_signal_pipeline &rarr; run_rules &rarr; configure Sizer / Hedger / Costs / Backtest &rarr; VolBacktest.run() &rarr; compute_performance &rarr; plot_results."],
+    ]
+  },
+  signal: {
+    l: "Signal engine", f: "signal.py",
+    s: "Produces a composite score (out) from 6 weighted market features. Positive = implied vol is rich &rarr; sell straddles. Negative = IV is cheap &rarr; buy. Mode invertible via config signal_mode.",
+    fns: [
+      [null, "run_signal_pipeline(data)", "Entry point. Adds moneyness and abs_moneyness columns, instantiates volSignalEngine, calls compute_features() and returns the final daily signal DataFrame."],
+      [null, "compute_features(data)", "Master method: calls all sub-engines &rarr; assembles dailyData &rarr; computes weighted contributions &rarr; appends signal and attribution columns. Returns final DataFrame."],
+      [null, "_compute_term_structure_score()", "Groups by date, slices near (20&ndash;30 DTE) and far (45&ndash;90 DTE) contracts. Returns far_IV &minus; near_IV = raw term slope. Positive = normal contango."],
+      [null, "_compute_skew()", "OTM put IV minus OTM call IV within &plusmn;5% moneyness band. Positive skew = put buyers paying up = bearish hedging demand in the market."],
+      [null, "_compute_regime_score(rv)", "Returns &minus;tanh(RV_z / 2). High realized vol &rarr; negative score &rarr; penalizes short-vol trades when the market is already turbulent."],
+      [null, "_compute_liquidity_score()", "Sigmoid of the mean of (log-volume z-score) and (inverse-spread z-score). Output 0&ndash;1; 0.5 = neutral, above 0.7 = liquid enough to trade."],
+      [null, "_compute_contributions()", "Multiplies each feature array by its config weight (w_spread_z, w_skew, w_regime, etc.) producing per-feature contribution columns used for attribution later."],
+      [null, "_generate_signal(out)", "Stateful loop: enters long when out &ge; entry_z, exits when out falls below exit_z. short_rich_vol mode inverts both entry and exit thresholds."],
+    ]
+  },
+  rules: {
+    l: "Trade rules", f: "rules.py",
+    s: "Applies institutional execution constraints to the raw signal before it reaches the engine. Vectorized passes run first, then a stateful path-dependent loop enforces time-based restrictions.",
+    fns: [
+      [null, "run_rules(df, config)", "Creates VolTradeRules(config) and calls apply(df). Returns executable_signals with position, entry_flag, exit_flag, and trade_action columns added."],
+      [null, "validate(df)", "Raises ValueError listing any missing columns from REQUIRED_COLS = [quote_date, out, signal, signal_side, signal_change]. Called automatically inside apply()."],
+      [null, "apply(df)", "Four passes: (1) Liquidity gate zeros positions below min_liquidity. (2) Flip guard blocks direct reversals if allow_flip=False. (3) Shift entire position column by execution_lag (EOD signal &rarr; next-day trade). (4) Calls stateful rules."],
+      [null, "_apply_stateful_rules(executed)", "Bar-by-bar loop. Suppresses new entries within cooldown_days of a recent exit. Forces exit when days_held &ge; max_holding_days. Writes resolved position back each bar."],
+    ]
+  },
+  engine: {
+    l: "Backtest engine", f: "engine.py",
+    s: "Event-driven loop over every row of signals_df. Executes 4 ordered steps per bar and appends a snapshot dict to results, which becomes a row in results_df.",
+    fns: [
+      ["1 &middot; Exit", "exit_flag / _check_stop()", "exit_flag=1 from rules triggers a close. _check_stop() also triggers if unrealized_pnl / entry_value &le; &minus;stop_loss_pct or &ge; +profit_take_pct."],
+      ["1 &middot; Exit", "portfolio.close_position(contract_data)", "Fetches today&rsquo;s contract via options_df.loc[(date, strike, expiry)]. Prices the close at adverse fill (long &rarr; bid, short &rarr; ask). Flushes greek attribution to realized buckets. Sets position=None."],
+      ["1 &middot; Exit", "portfolio.apply_hedge(&minus;shares, spot)", "Immediately unwinds all residual delta-hedge shares at current spot price right after the option position is closed."],
+      ["2 &middot; Entry", "select_strike() + sizer.calculate_quantity()", "Fetches daily chain via xs(date) on the MultiIndex DataFrame. Picks the strike with minimum |c_delta &minus; 0.50|. Calls VolSizer for contract count using the configured mode."],
+      ["2 &middot; Entry", "create_straddle() + open_position()", "Builds StraddlePosition &mdash; requires entry_row[&ldquo;position&rdquo;]=&plusmn;1 to be set before calling. Records premium cash flow and entry transaction cost in Portfolio."],
+      ["3 &middot; Mark", "options_df.loc[(date, strike, expiry)]", "MultiIndex lookup for current contract prices and greeks. KeyError (data gap) degrades gracefully to last known price with a logged warning."],
+      ["3 &middot; Mark", "portfolio.mark_to_market(contract_data)", "Updates position MID price, runs Taylor attribution (&delta;/&Gamma;/V/&Theta;), updates unrealized PnL. Returns the full bar snapshot dict including all greek attribution totals."],
+      ["4 &middot; Hedge", "hedger.calculate_hedge_action(shares, delta, spot)", "DAILY: always rebalance to target=&minus;delta. BAND: only trade when |portfolio_delta| &ge; threshold. NONE: skip entirely. Returns a HedgeAction dataclass."],
+      ["4 &middot; Hedge", "portfolio.apply_hedge(shares_to_trade, spot)", "Executes the share trade: updates cash and weighted-avg cost; realizes PnL on partial or full hedge close."],
+      [null, "_check_stop()", "pnl_pct = unrealized_pnl / (entry_price &times; qty &times; 100). Returns True if pnl_pct breaches stop_loss_pct or profit_take_pct. Called every bar while a position is open."],
+      [null, "_add_drawdown(df)", "Vectorized post-loop: peak = cummax(nav); drawdown = (nav &minus; peak) / peak. Appended as a column to results_df after the main loop completes."],
+    ]
+  },
+  portfolio: {
+    l: "Portfolio", f: "portfolio.py",
+    s: "Single-strategy ledger. Tracks cash, delta-hedge shares, one open StraddlePosition, and all realized PnL buckets (option PnL, hedge PnL, total costs, and 4 greek attribution buckets).",
+    fns: [
+      [null, "open_position(position, row)", "Computes premium_flow = &minus;side &times; (c_price + p_price) &times; 100 &times; qty. Long straddles pay premium (cash out), short straddles receive it (cash in). Deducts entry transaction cost. Stores position reference."],
+      [null, "close_position(row)", "Adverse fills on close. Deducts close cost. Adds position.unrealized_pnl to _option_pnl. Flushes the position&rsquo;s attribution dict into _delta_pnl / _gamma_pnl / _vega_pnl / _theta_pnl realized buckets. Sets self.position=None."],
+      [null, "apply_hedge(share_change, spot)", "Buys or sells shares to hedge delta. Tracks weighted-average cost via running total. Realizes PnL on partial or full position close. Deducts equity transaction costs from cash."],
+      [null, "mark_to_market(row)", "Calls position.mark_to_market(). Returns full snapshot dict: cash, NAV, cumulative option/hedge/cost PnL totals, and 4 greek attribution cumulative columns."],
+    ]
+  },
+  position: {
+    l: "Position", f: "position.py",
+    s: "StraddlePosition dataclass tracks live state (price, spot, IV, greeks) and computes bar-level PnL with full Taylor attribution. PositionManager handles strike selection and straddle construction.",
+    fns: [
+      [null, "StraddlePosition.__post_init__()", "Validates side &isin; {1, &minus;1} and qty &gt; 0. Seeds current_price = entry_price, current_spot, current_iv (from entry row IV average), unrealized_pnl = 0."],
+      [null, "mark_to_market(row)", "Updates MID price as (bid+ask)/2. PnL = side &times; (new_price &minus; current_price) &times; qty &times; 100. Taylor attribution: &delta;&middot;dS, &frac12;&middot;&Gamma;&middot;dS&sup2;, V&middot;dIV, &Theta;&middot;dt. Refreshes delta/vega/theta/gamma from the new row."],
+      [null, "portfolio_delta&nbsp;&nbsp;(property)", "Returns delta &times; quantity &times; 100. This is the dollar delta scalar passed to DeltaHedgeEngine.calculate_hedge_action() each bar."],
+      [null, "PositionManager.select_strike()", "Finds the strike with minimum |c_delta &minus; 0.50| from the daily chain. Falls back to nearest ATM by |strike &minus; spot| if c_delta is absent from the data."],
+      [null, "PositionManager.create_straddle(row, qty)", "Validates row[&ldquo;position&rdquo;]=&plusmn;1. Resolves MID prices for call and put. Seeds current_iv from entry row IV so the first bar has a non-zero vega attribution. Returns a StraddlePosition."],
+    ]
+  },
+  sizing: {
+    l: "Vol sizer", f: "sizing.py",
+    s: "Computes contract quantity using one of three sizing modes (vega-target, vol-target, or Kelly), then applies three universal safety guards before returning a whole-number quantity.",
+    fns: [
+      [null, "calculate_quantity(row, signal_strength)", "Calls mode sizer &rarr; clip to [min_contracts, max_contracts] &rarr; notional cap (max_notional_pct &times; portfolio_value) &rarr; floor to whole contracts. Returns float."],
+      [null, "_vega_size(row)", "qty = target_vega_usd / (total_vega &times; 100). Targets a fixed $ sensitivity to a 1-vol-point IV move. Returns min_contracts if total_vega &lt; 0.001 to avoid division by near-zero."],
+      [null, "_vol_target_size(row)", "qty = (portfolio_value &times; target_vol / &radic;252) / (total_vega_usd &times; IV / &radic;252). Targets an annualised portfolio volatility contribution from this position."],
+      [null, "_kelly_size(signal_strength)", "f* = (p&middot;b &minus; q) / b &times; kelly_fraction &times; tanh(|signal_strength|). signal_strength is the raw composite out score. Scales down the bet size as edge decreases."],
+    ]
+  },
+  hedge_engine: {
+    l: "Delta hedge engine", f: "delta_hedge.py",
+    s: "Calculates the number of shares to trade each bar to keep portfolio delta near zero. Three configurable modes: DAILY (always rebalance), BAND (threshold trigger), NONE (skip).",
+    fns: [
+      [null, "calculate_hedge_action(current_shares, portfolio_delta, spot, is_closing)", "is_closing=True &rarr; trade &minus;current_shares (full unwind). DAILY &rarr; target = &minus;portfolio_delta. BAND &rarr; only trade when |portfolio_delta| &ge; threshold. NONE &rarr; shares_to_trade = 0."],
+      [null, "_compute_hedge_cost(shares_to_trade, spot)", "cost = |shares| &times; (hedge_cost_per_share + slippage_pct &times; spot). Using abs() is critical: selling shares has a negative share_change but a positive transaction cost."],
+    ]
+  },
+  costs: {
+    l: "Cost model", f: "transactions_costs.py",
+    s: "Models all trading frictions. Called by Portfolio on every open, close, and hedge trade. All costs are deducted from cash and accumulated in the _total_costs bucket.",
+    fns: [
+      [null, "option_open_cost(row, qty, side)", "half_spread &times; 2 legs &times; qty &times; 100 &nbsp;+ &nbsp;max(qty &times; commission_per_contract, min_ticket) &times; 2 legs &nbsp;+ &nbsp;slippage_pct &times; mid_straddle &times; qty &times; 100."],
+      [null, "option_close_cost(row, qty, side)", "Same structure as open cost, plus SEC fee (8 / 1,000,000 &times; notional) when side = 1. Closing a long straddle is a sale (sell-to-close) which triggers the SEC fee."],
+      [null, "equity_cost(shares, spot)", "commission + slippage + (SEC fee + FINRA TAF capped at $7.27) on sell trades only. is_sale = shares &lt; 0 determines whether regulatory fees apply."],
+      [null, "_calculate_half_spread(row, leg)", "(ask &minus; bid) / 2 for the given leg. Logs a debug warning and returns fallback_spread / 2 if bid or ask is NaN or missing from the data."],
+    ]
+  },
+  performance: {
+    l: "Performance metrics", f: "performace.py",
+    s: "Computes the full tear sheet from results_df returned by VolBacktest.run(). Returns a pd.Series for easy side-by-side comparison across multiple backtest runs.",
+    fns: [
+      [null, "compute_performance(results)", "Returns pd.Series with: total_return_pct, cagr_pct, ann_vol_pct, sharpe, sortino, calmar, max_drawdown_pct, avg_drawdown_pct, total option/hedge/cost PnL, cost_drag_pct, hedge_efficiency_x, plus all trade statistics."],
+      [null, "_trade_statistics(results)", "Detects entry/exit bars from the diff of has_position column. Computes win_rate = wins / num_trades (not wins / num_bars &mdash; the fixed bug). Returns profit_factor, avg_win, avg_loss, avg_holding_days."],
+    ]
+  },
+  output: {
+    l: "Chart output", f: "run_backtest.py",
+    s: "Generates a 3-panel matplotlib dashboard saved to logs/backtest_results.png and displayed interactively. Prints a complete formatted tear sheet to stdout including greek PnL attribution totals.",
+    fns: [
+      [null, "plot_results(results_df)", "Panel 1: NAV curve with above/below-baseline fill shading. Panel 2: cumulative option PnL, hedge PnL, and &minus;costs. Panel 3: cumulative &delta;, &Gamma;, vega, and &Theta; PnL from the Taylor attribution."],
+      [null, "main() &mdash; tear sheet section", "Prints: total return, CAGR, ann vol, Sharpe, Sortino, Calmar, max drawdown, option/hedge/cost PnL buckets, hedge efficiency, num trades, win rate, profit factor, avg holding days, and greek attribution summary."],
+    ]
+  }
 };
+
+let cur = null;
 
 function show(id) {
   const d = D[id];
   if (!d) return;
-  const rows = d.fns.map(([c,desc]) => {
-    const m = c.match(/^\[([^\]]+)\]\s*(.*)/);
-    const tag = m ? `<span class="stag">${m[1]}</span>` : '';
-    const code = m ? m[2] : c;
-    return `<div class="fr"><span class="fc">${tag}${code}</span><span class="fd">${desc}</span></div>`;
-  }).join('');
-  document.getElementById('det').innerHTML =
-    `<div style="display:flex;align-items:center;gap:4px;margin-bottom:8px">
-       <span style="font-size:14px;font-weight:500;color:var(--color-text-primary)">${d.l}</span>
-       <span class="badge">${d.f}</span>
-     </div>
-     <p style="font-size:12px;color:var(--color-text-secondary);margin:0 0 10px;line-height:1.55">${d.s}</p>
-     <div style="border-top:0.5px solid var(--color-border-tertiary)">${rows}</div>`;
+  if (cur) document.getElementById("n-" + cur)?.classList.remove("sel");
+  cur = id;
+  document.getElementById("n-" + id)?.classList.add("sel");
+
+  const rows = d.fns.map(([tag, code, desc]) => {
+    const t = tag ? "<div class=\"fn-tag\">" + tag + "</div>" : "";
+    return "<tr class=\"fn-tr\"><td class=\"fn-code\">" + t + code + "</td><td class=\"fn-desc\">" + desc + "</td></tr>";
+  }).join("");
+
+  document.getElementById("det").innerHTML =
+    "<div class=\"det-hdr\"><span class=\"det-title\">" + d.l + "</span><span class=\"det-file\">" + d.f + "</span></div>" +
+    "<div class=\"det-sum\">" + d.s + "</div>" +
+    "<table class=\"fn-tbl\"><tbody>" + rows + "</tbody></table>";
 }
+
+document.querySelectorAll("[tabindex='0']").forEach(el => {
+  el.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); el.click(); }
+  });
+});
 </script>
+
+</body>
+</html>
