@@ -26,7 +26,7 @@ class StraddlePosition:
     current_price:float=field(init=False)
     current_spot:float=field(init=False)
     current_iv:float=field(init=False)
-    unrealized_pnl:float=field(init=False)
+    unrealized_pnl:float=field(default=0.0)
 
     #Greeks
     delta:float=0.0
@@ -69,7 +69,7 @@ class StraddlePosition:
         # We calculate attribution to check if our greeks explain price movement 
         delta_chg=self.side * self.delta * ds * self.quantity * LOT_SIZE
         gamma_chg=self.side * 0.5 * self.gamma * (ds**2) * self.quantity * LOT_SIZE
-        theta_chg=self.side * self.theta * dt * self.quantity * LOT_SIZE
+        theta_chg=self.side * self.theta * self.quantity * LOT_SIZE
        
 
         c_iv = float(row.get('c_iv', np.nan))

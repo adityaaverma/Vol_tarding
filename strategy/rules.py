@@ -11,7 +11,8 @@ class RuleConfig:
     execution_lag: int = 1          # daily EOD signal -> trade next day
     min_liquidity: float = 0.5      # block trades below this score
     allow_flip: bool = True         # allow short -> long directly if signal changes
-    max_holding_days: int | None = None
+    min_holding_days: int = 5
+    max_holding_days: int | None = 21
     cooldown_days: int = 0
 
 class VolTradeRules:
@@ -84,6 +85,8 @@ class VolTradeRules:
                 if self.config.max_holding_days and self.config.max_holding_days<=days_held:
                     logger.debug(f"max holding dates resched at index {i}. Forcing exit")
                     desired=0
+                if self.config.min_holding_days and days_held < self.config.min_holding_days:
+                    desired = current_pos # suppress early exit
 
             # State transition Machines
             # Entry

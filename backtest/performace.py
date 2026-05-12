@@ -3,7 +3,7 @@ import pandas as pd
 
 
 
-def compute_performance(results:pd.DataFrame, risk_free_rate:float=0.25, trading_days:int=252)->pd.Series:
+def compute_performance(results:pd.DataFrame, risk_free_rate:float=0.05, trading_days:int=252)->pd.Series:
 
     if len(results) == 0:
         return pd.Series(dtype=float)

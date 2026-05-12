@@ -114,7 +114,7 @@ def plot_results(results_df: pd.DataFrame) -> None:
 def main() -> None:
     logger.info("Initializing Volatility Backtest")
 
-    data_path = r"data\SPY_Optionsdata(2019-22).csv"
+    data_path = r"data/dte90.csv"
     if not os.path.exists(data_path):
         logger.error(f"Data file not found at {data_path}.")
         return

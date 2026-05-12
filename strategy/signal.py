@@ -313,8 +313,8 @@ def run_signal_pipeline(
     engine = volSignalEngine(config=config or {
         'symbol': 'SPY',
         'window': 30,
-        'entry_z': 1.0,
-        'exit_z': 0.25,
+        'entry_z': 1.5,
+        'exit_z': 0.50,
         'signal_mode': 'short_rich_vol',
         'w_spread_z': 0.45,
         'w_spread_pctile': 0.15,
@@ -327,13 +327,14 @@ def run_signal_pipeline(
 
 
 if __name__ == '__main__':
-    data=pd.read_csv(r'data\dte90.csv')
+    data=pd.read_csv(r'data/dte90.csv')
     print(data.columns)
     result = run_signal_pipeline(data)
     print(result.loc[60:90, ['quote_date',
                                'moneyness',
-                               'c_iv',
-                               'p_iv',
+
+                               'c_theta',
+                               'p_theta',
                                'iv',
                                'underlying_last',
                                'strike',
