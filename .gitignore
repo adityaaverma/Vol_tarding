@@ -11,6 +11,7 @@ execution/__pycache__/
 backtest/__pycache__/
 data/SPY_Optionsdata(2019-22).csv
 data/dte90.csv
+data/spy_2020_2022.csv
 analytics.py
 API_REFERENCE.md
 README.md
@@ -19,3 +20,5 @@ execution_engine.py
 pipeline.py
 PRODUCTION_GUIDE.md
 QUICK_REFERENCE.md
+data/SPY_ALL_YEARS_MASTER.parquet
+data/processed/
