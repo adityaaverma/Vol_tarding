@@ -13,14 +13,18 @@ logger=logging.getLogger(__name__)
 
 @dataclass
 class BacktestConfig:
-    initial_capital:float=1_000_000.0
-    costConfig:CostConfig =field(default_factory=CostConfig)
-    multiplier:float=100
-    ticker:str="SPY"
-
-    #Risk Management Gaurds
-    stop_loss_pct:Optional[float]=0.5
-    profit_take_pct:Optional[float]=1.0
+    initial_capital:    float          = 1_000_000.0
+    costConfig:         CostConfig     = field(default_factory=CostConfig)
+    multiplier:         float          = 100
+    ticker:             str            = "SPY"
+ 
+    # Risk management — fractions of entry value (0.40 = 40%)
+    stop_loss_pct:      Optional[float] = 0.40
+    profit_take_pct:    Optional[float] = 0.50
+ 
+    # Preferred DTE window for contract selection at entry
+    entry_dte_min:      int            = 25
+    entry_dte_max:      int            = 55
 
 class VolBacktest:
 
@@ -35,16 +39,85 @@ class VolBacktest:
 
         self.sizer:VolSizer=sizer
         self.hedger:DeltaHedgeEngine=hedger
-        self.config:BacktestConfig=config or BacktestConfig()
+        self.config:BacktestConfig=config if config is not None else BacktestConfig()
 
         self.cost_model:TransactionalCostModel=TransactionalCostModel(self.config.costConfig)
         self.position_manager:PositionManager=PositionManager(ticker=self.config.ticker)
         self._portfolio:Portfolio = Portfolio(initial_capital=self.config.initial_capital, cost_config=self.config.costConfig, 
                                     multiplier=self.config.multiplier)
 
+    def _lookup(self,date:pd.Timestamp,strike:float,expiry)->Optional[pd.Series]:
+        """
+        pandas MultiIndex .loc[] requires an exact type match on every level.
+        pos.expiry from position.py can be datetime.date, np.datetime64, a
+        string, or pd.Timestamp depending on how the Position dataclass stores
+        it.  Any mismatch silently raises KeyError even when the row exists.
+
+        This wrapper coerces all three key components to the exact types used
+        when the index was built (pd.Timestamp / float64), then does the lookup.
+        Returns None on a genuine miss so callers can handle it cleanly.
+        """
+        key = (
+            pd.Timestamp(date),
+            float(strike),
+            pd.Timestamp(expiry)
+        )
+
+        try:
+            row=self.options_df.loc[key]
+            if isinstance(row,pd.DataFrame):
+                row=row.iloc[0]
+            return row.copy()
+        except KeyError:
+            return None
+        
+    def _daily_lookup_chain(self,date:pd.Timestamp)->pd.DataFrame:
+        """
+        Returns all contracts of a given quote date as a flat dataframe
+        coerces the quote date to Timestamp so xs() always hits the index
+        """
+        try:
+            chain=(self.options_df.xs(pd.Timestamp(date),level="quote date").reset_index())
+            return chain
+        
+        except KeyError:
+            return pd.DataFrame()
+        
+    def _select_entry_row(self,daily_chain:pd.DataFrame,spot:float)->Optional[pd.Series]:
+        """
+        Fixed earlier vesrions used .iloc[0] which always picked the shortest available expiry -
+        sometime 8 DTE which produced very short lived straddles 
+
+        Priority Order:
+        1. Contract whose DTE is inside [entry_dte_min,entry_dte_max]
+        2. If none qualify fallback to nearest DTE contract  
+        """
+        if daily_chain.empty:
+            return None
+        
+        best_strike=self.position_manager.select_strike(daily_chain,spot,method='delta')
+        candidates=daily_chain[daily_chain['strike']==best_strike].copy()
+
+        if candidates.empty:
+            return None
+
+        if 'dte' in candidates.columns:
+            in_window=candidates[
+                (candidates['dte']>=self.config.entry_dte_min) &
+                (candidates['dte']<=self.config.entry_dte_max)
+                ]
+
+            if not in_window.empty:
+                mid_dte=(self.config.entry_dte_min + self.config.entry_dte_max)/2
+                idx=(in_window['dte'] - mid_dte).abs().min()
+                return in_window.loc[idx].copy()
+            
+        return candidates.iloc[0].copy()
 
     def run(self)->pd.DataFrame:
+
         results=[]
+
         for _,signal_row in self.signals_df.iterrows():
             date=pd.to_datetime(signal_row['quote_date'])
             spot=float(signal_row.get('underlying_last',0.0))
@@ -55,13 +128,32 @@ class VolBacktest:
                 should_exit = (signal_row.get('exit_flag',0)==1 or self._check_stop())
                 if should_exit:
                     pos=self._portfolio.position
-                    try:    
+                    
                         # Fetch today's Price for the exact contract we hold
-                        contract_data = self.options_df.loc[(date,pos.strike,pos.expiry)].copy()
-                        contract_data['underlying_last'] = spot
-                    except KeyError:
-                        logger.warning(f"Data gap for Strike {pos.strike} on {date}. Forcing close using entry price.")
-                        contract_data=pd.Series({"c_bid": pos.current_price/2 ,"p_bid":pos.current_price/2,"underlying_last":spot})
+                    contract_data = self._lookup(date,pos.strike,pos.expiry)
+                    contract_data['underlying_last'] = spot
+                    if contract_data is not None:
+                        contract_data['underlying_last']=spot
+                    else:
+                        # FIX 4: richer fallback — include both legs so
+                        # close_position can compute Greek attribution
+                        logger.warning(
+                            f"Data gap on exit: Strike {pos.strike} / "
+                            f"Expiry {pos.expiry} not found on {date.date()}. "
+                            f"Closing at entry price."
+                        )
+                        half = pos.current_price / 2
+                        contract_data = pd.Series({
+                            "c_bid": half,  "c_ask": half,
+                            "p_bid": half,  "p_ask": half,
+                            "c_iv":  np.nan, "p_iv": np.nan,
+                            "c_delta": 0.0,  "p_delta": 0.0,
+                            "c_gamma": 0.0,  "p_gamma": 0.0,
+                            "c_vega":  0.0,  "p_vega":  0.0,
+                            "c_theta": 0.0,  "p_theta": 0.0,
+                            "underlying_last": spot,
+                        })
+
                     
                     self._portfolio.close_position(contract_data)
 
@@ -73,17 +165,19 @@ class VolBacktest:
             # 2. ENtry Logic
             if self._portfolio.position is None and signal_row.get('entry_flag',0)==1:
                 raw_side=int(signal_row.get('position',0))
+
                 if raw_side not in [1,-1]:
                     logger.warning(f"Skipping entry on {date}: invalid side value {raw_side}.")
                 else:
-                    try:
-                        #fetch all available contracts for today
-                        daily_chain=self.options_df.xs(date,level='quote_date').reset_index()
+                    
+                    #fetch all available contracts for today
+                    daily_chain=self._daily_lookup_chain(date)
 
-                        if not daily_chain.empty:
-                            best_strike=self.position_manager.select_strike(daily_chain,spot,method="delta")
-                            entry_row=daily_chain[daily_chain['strike']==best_strike].iloc[0].copy()
+                    if not daily_chain.empty:
+                        
+                        entry_row=self._select_entry_row(daily_chain,spot)
 
+                        if entry_row is not None:
                             entry_row['quote_date']=date
                             entry_row['underlying_last']=spot
                             entry_row['position']=raw_side
@@ -91,20 +185,23 @@ class VolBacktest:
                             qty=self.sizer.calculate_quantity(entry_row,abs(float(signal_row.get('out',1.0))))
                             new_pos=self.position_manager.create_straddle(entry_row,qty)
                             self._portfolio.open_position(new_pos,entry_row)
-                    except KeyError:
-                        logger.warning(f"No options chain data available for entry on {date}")
+
+                        else:
+                            logger.warning(f"No valid entry row on {date.date()}.")
+
+                    else:
+                        logger.warning(f"No options chain data for entry on {date.date()}.")                    
 
             # 3. Mark to Market
 
             if self._portfolio.position is not None:
                 pos=self._portfolio.position
+                contract_data = self._lookup(date, pos.strike, pos.expiry)
 
-                try:
-                    contract_data=self.options_df.loc[(date,pos.strike,pos.expiry)].copy()
+                if contract_data is not None:
                     contract_data['underlying_last']=spot
-                    snap=self._portfolio.mark_to_market(contract_data)
-
-                except KeyError:
+                    snap=self._portfolio.mark_to_market(contract_data)  
+                else:
                     snap = self._portfolio.mark_to_market(pd.Series({"underlying_last": spot}))
 
             else:

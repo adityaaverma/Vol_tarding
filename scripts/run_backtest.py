@@ -21,7 +21,7 @@ logger = logging.getLogger("VolRunner")
 
 
 # ── paths ──────────────────────────────────────────────────────────────────────
-RAW_DATA_PATH        = "data/spy_2020_2022.csv"   # original Kaggle CSV
+RAW_DATA_PATH        = "data/SPY_ALL_YEARS_MASTER.parquet"   # master parquet file
 FULL_CHAIN_PATH      = "data/processed/full_chain.parquet"
 SIGNAL_DATA_PATH     = "data/processed/signal_data.parquet"
 
@@ -51,7 +51,7 @@ def prepare_data() -> tuple[pd.DataFrame, pd.DataFrame]:
         if not os.path.exists(RAW_DATA_PATH):
             raise FileNotFoundError(
                 f"Raw data not found at '{RAW_DATA_PATH}'.\n"
-                "Download spy_2020_2022.csv from Kaggle and place it in data/raw/."
+                "Ensure SPY_ALL_YEARS_MASTER.parquet is placed in the data/ directory."
             )
         logger.info("No cached files found — running full data pipeline...")
         full_chain, signal_data = run_pipeline(
