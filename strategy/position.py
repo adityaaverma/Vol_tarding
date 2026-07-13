@@ -1,4 +1,5 @@
 from dataclasses import dataclass,field
+from email.policy import default
 import pandas as pd
 from typing import Dict
 import numpy as np
@@ -49,6 +50,12 @@ class StraddlePosition:
         self.current_price=self.entry_price
         self.current_spot=self.entry_spot
         self.unrealized_pnl=0.0
+    
+    def _safe_num(row: pd.Series, key: str, default: float = 0.0) -> float:
+        val = row.get(key, default)
+        if val is None or (isinstance(val, float) and np.isnan(val)):
+            return default
+        return float(val)
 
     def mark_to_market(self,row:pd.Series)->float:
         """
@@ -84,7 +91,7 @@ class StraddlePosition:
             new_iv = self.current_iv   # no IV data → no vega attribution this bar
  
         div = new_iv - self.current_iv  # change in implied vol (annualised decimal)
-        vega_chg = self.side * self.vega * div * self.quantity * LOT_SIZE
+        vega_chg = self.side * (self.vega * 100) * div * self.quantity * LOT_SIZE
 
         self.attribution['delta_pnl'] += delta_chg
         self.attribution['gamma_pnl'] += gamma_chg
@@ -99,16 +106,16 @@ class StraddlePosition:
         self.current_iv=new_iv
 
         #Refresh greeks for next bars attibution
-        self.delta=float(row.get('c_delta',0.0)+row.get('p_delta',0.0))
-        self.vega=float(row.get('c_vega',0.0)+row.get('p_vega',0.0))
-        self.theta=float(row.get('c_theta',0.0)+row.get('p_theta',0.0))
-        self.gamma=float(row.get('c_gamma',0.0)+row.get('p_gamma',0.0))
+        self.delta = self._safe_num(row,'c_delta') + self._safe_num(row,'p_delta')
+        self.vega  = self._safe_num(row,'c_vega')  + self._safe_num(row,'p_vega')
+        self.theta = self._safe_num(row,'c_theta') + self._safe_num(row,'p_theta')
+        self.gamma = self._safe_num(row,'c_gamma') + self._safe_num(row,'p_gamma')
 
         return total_pnl_change
     
     @property
     def portfolio_delta(self)->float:
-        return self.delta * self.quantity * LOT_SIZE
+        return self.side * self.delta * self.quantity * LOT_SIZE
     
 class PositionManager:
     """

@@ -238,7 +238,10 @@ class VolBacktest:
                             "c_theta": 0.0,  "p_theta": 0.0,
                             "underlying_last": spot,
                         })
-
+                    if contract_data is not None:
+                        contract_data['UNDERLYING_LAST'] = spot
+                        contract_data=self._fill_iv(contract_data)
+                        self._portfolio.position.mark_to_market(contract_data)
                     self._portfolio.close_position(contract_data)
 
                     if self._portfolio.shares != 0:
@@ -264,7 +267,7 @@ class VolBacktest:
                             entry_row["underlying_last"] = spot
                             entry_row["position"]        = raw_side
 
-                            qty     = self.sizer.calculate_quantity(
+                            qty = self.sizer.calculate_quantity(
                                 entry_row,
                                 abs(float(signal_row.get("out", 1.0))),
                             )
