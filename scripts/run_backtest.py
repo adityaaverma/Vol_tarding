@@ -1,10 +1,18 @@
 import logging
+import os
+import sys
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
-import os
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-from data.data_pipeline import run_pipeline, load_full_chain, load_signal_data  
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from data.data_pipeline import run_pipeline, load_full_chain, load_signal_data
 from strategy.signal import run_signal_pipeline
 from strategy.rules import RuleConfig, run_rules
 from strategy.sizing import SizerConfig, VolSizer
@@ -162,12 +170,19 @@ def main() -> None:
     signals_df = run_signal_pipeline(signal_data)
 
     logger.info("Applying Trade Rules (Liquidity, Lags, Cooldowns)...")
+    # rule_config = RuleConfig(
+    #     execution_lag    = 1,
+    #     min_liquidity    = 0.5,
+    #     allow_flip       = False,
+    #     max_holding_days = 21,   # force exit at 3 weeks to avoid DTE → 0 gaps
+    #     cooldown_days    = 2,
+    # )
     rule_config = RuleConfig(
-        execution_lag    = 1,
-        min_liquidity    = 0.5,
-        allow_flip       = False,
-        max_holding_days = 21,   # force exit at 3 weeks to avoid DTE → 0 gaps
-        cooldown_days    = 2,
+    execution_lag    = 1,
+    min_liquidity    = 0.0,     # ← temporarily disable gate
+    allow_flip       = False,
+    max_holding_days = 21,
+    cooldown_days    = 2,
     )
     executable_signals = run_rules(df=signals_df, config=rule_config)
 

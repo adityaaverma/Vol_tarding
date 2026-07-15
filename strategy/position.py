@@ -49,11 +49,20 @@ class StraddlePosition:
             raise ValueError(f"quantity must be positive got {self.quantity}")
         self.current_price=self.entry_price
         self.current_spot=self.entry_spot
+        self.current_iv=np.nan
         self.unrealized_pnl=0.0
     
-    def _safe_num(row: pd.Series, key: str, default: float = 0.0) -> float:
-        val = row.get(key, default)
-        if val is None or (isinstance(val, float) and np.isnan(val)):
+    @staticmethod
+    def _safe_num(row, key: str, default: float = 0.0) -> float:
+        if row is None:
+            return default
+
+        if hasattr(row, "get"):
+            val = row.get(key, default)
+        else:
+            return default
+
+        if val is None or (isinstance(val, (float, np.floating)) and np.isnan(val)):
             return default
         return float(val)
 
@@ -106,10 +115,10 @@ class StraddlePosition:
         self.current_iv=new_iv
 
         #Refresh greeks for next bars attibution
-        self.delta = self._safe_num(row,'c_delta') + self._safe_num(row,'p_delta')
-        self.vega  = self._safe_num(row,'c_vega')  + self._safe_num(row,'p_vega')
-        self.theta = self._safe_num(row,'c_theta') + self._safe_num(row,'p_theta')
-        self.gamma = self._safe_num(row,'c_gamma') + self._safe_num(row,'p_gamma')
+        self.delta = self._safe_num(row,'C_DELTA') + self._safe_num(row,'P_DELTA')
+        self.vega  = self._safe_num(row,'C_VEGA')  + self._safe_num(row,'P_VEGA')
+        self.theta = self._safe_num(row,'C_THETA') + self._safe_num(row,'P_THETA')
+        self.gamma = self._safe_num(row,'C_GAMMA') + self._safe_num(row,'P_GAMMA')
 
         return total_pnl_change
     
