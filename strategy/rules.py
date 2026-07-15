@@ -33,11 +33,11 @@ class VolTradeRules:
         # 1. Vectorized liquidity Gate
         # Instituional trade: if market is too thin we simply do not trade
         raw_position=out['signal'].fillna(0).astype(int)
+        low_liq_mask=pd.Series(False,index=out.index)
         if "liquidity_score" in out.columns:
             low_liq_mask=out['liquidity_score']<self.config.min_liquidity
             if low_liq_mask.any():
                 logger.info(f"Liquidity gate supressed trades on {low_liq_mask.sum()} bars.")
-                raw_position[low_liq_mask]=0
         
         #vectorized flip gaurd
         if not self.config.allow_flip:
@@ -46,7 +46,8 @@ class VolTradeRules:
             raw_position[flip_mask]=0   
         
         executed_position=raw_position.shift(self.config.execution_lag).fillna(0).astype(int)
-        final_position=self._apply_stateful_rules(out,executed_position)
+        low_liq_shifted=low_liq_mask.shift(self.config.execution_lag).fillna(False)
+        final_position=self._apply_stateful_rules(out,executed_position,low_liq_shifted)
 
         out['position']=final_position
         out['position_prev']=out['position'].shift(1).fillna(0).astype(int)
@@ -58,7 +59,7 @@ class VolTradeRules:
 
         return out
     
-    def _apply_stateful_rules(self,df:pd.DataFrame, executed:pd.Series)->pd.Series:
+    def _apply_stateful_rules(self,df:pd.DataFrame, executed:pd.Series,low_liq_mask:pd.Series)->pd.Series:
         """
         enforces path dependent logic:
         cooldown: no new entries after N days of exit
@@ -67,6 +68,7 @@ class VolTradeRules:
 
         dates=pd.to_datetime(df['quote_date']).to_numpy()
         pos_arr=executed.to_numpy().copy()
+        liq_blocked=low_liq_mask.to_numpy()
         
         current_pos=0
         entry_date=None
@@ -77,6 +79,10 @@ class VolTradeRules:
             desired=pos_arr[i]
             #Cooldown check
             if i<=cooldown_end_idx and desired!=0 and current_pos==0:
+                desired=0
+            
+            #liquidity - gate
+            if current_pos==0 and desired!=0 and liq_blocked[i]:
                 desired=0
 
             #Max holding check

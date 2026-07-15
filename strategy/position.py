@@ -115,10 +115,10 @@ class StraddlePosition:
         self.current_iv=new_iv
 
         #Refresh greeks for next bars attibution
-        self.delta = self._safe_num(row,'C_DELTA') + self._safe_num(row,'P_DELTA')
-        self.vega  = self._safe_num(row,'C_VEGA')  + self._safe_num(row,'P_VEGA')
-        self.theta = self._safe_num(row,'C_THETA') + self._safe_num(row,'P_THETA')
-        self.gamma = self._safe_num(row,'C_GAMMA') + self._safe_num(row,'P_GAMMA')
+        self.delta = self._safe_num(row,'c_delta') + self._safe_num(row,'p_delta')
+        self.vega  = self._safe_num(row,'c_vega')  + self._safe_num(row,'p_vega')
+        self.theta = self._safe_num(row,'c_theta') + self._safe_num(row,'p_theta')
+        self.gamma = self._safe_num(row,'c_gamma') + self._safe_num(row,'p_gamma')
 
         return total_pnl_change
     
