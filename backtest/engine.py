@@ -221,26 +221,35 @@ class VolBacktest:
                     if contract_data is not None:
                         contract_data["underlying_last"] = spot
                     else:
+                        if self.last_valid_contract is not None:
+                            logger.warning(
+                                f"Data gap on exit: Strike {pos.strike} / Expiry {pos.expiry} "
+                                f"not found on {date.date()}. Carrying forward last known contract."
+                            )
+                            contract_data = self.last_valid_contract.copy()
+                            contract_data["underlying_last"] = spot
+                        
                         # FIX 4: richer fallback — include both legs so
                         # close_position can compute Greek attribution
-                        logger.warning(
-                            f"Data gap on exit: Strike {pos.strike} / "
-                            f"Expiry {pos.expiry} not found on {date.date()}. "
-                            f"Closing at entry price."
-                        )
-                        half = pos.current_price / 2
-                        contract_data = pd.Series({
-                            "c_bid": half,  "c_ask": half,
-                            "p_bid": half,  "p_ask": half,
-                            "c_iv":  np.nan, "p_iv": np.nan,
-                            "c_delta": 0.0,  "p_delta": 0.0,
-                            "c_gamma": 0.0,  "p_gamma": 0.0,
-                            "c_vega":  0.0,  "p_vega":  0.0,
-                            "c_theta": 0.0,  "p_theta": 0.0,
-                            "underlying_last": spot,
-                        })
+                        else:
+                            logger.warning(
+                                f"Data gap on exit: Strike {pos.strike} / "
+                                f"Expiry {pos.expiry} not found on {date.date()}. "
+                                f"Closing at entry price."
+                            )
+                            half = pos.current_price / 2
+                            contract_data = pd.Series({
+                                "c_bid": half,  "c_ask": half,
+                                "p_bid": half,  "p_ask": half,
+                                "c_iv":  np.nan, "p_iv": np.nan,
+                                "c_delta": 0.0,  "p_delta": 0.0,
+                                "c_gamma": 0.0,  "p_gamma": 0.0,
+                                "c_vega":  0.0,  "p_vega":  0.0,
+                                "c_theta": 0.0,  "p_theta": 0.0,
+                                "underlying_last": spot,
+                            })
                     if contract_data is not None:
-                        contract_data['UNDERLYING_LAST'] = spot
+                        contract_data['underlying_last'] = spot
                         contract_data=self._fill_iv(contract_data)
                         self._portfolio.position.mark_to_market(contract_data)
                     self._portfolio.close_position(contract_data)
@@ -274,7 +283,7 @@ class VolBacktest:
                             )
                             new_pos = self.position_manager.create_straddle(entry_row, qty)
                             self._last_valid_iv = None
-                            self._last_valid_contract = None          # reset IV cache for new position
+                            self.last_valid_contract = None          # reset IV cache for new position
                             self._fill_iv(entry_row)            # seed cache from entry row if IV present
                             self._portfolio.open_position(new_pos, entry_row)
                         else:
@@ -297,6 +306,7 @@ class VolBacktest:
                     logger.warning(
                     f"MTM gap on {date.date()} for strike {pos.strike}/{pos.expiry}: "
                     f"carrying forward last known contract data.")
+                    logger.info("🔧 PATCHED engine.py carry-forward triggered")
                     carried=self.last_valid_contract.copy()
                     carried["underlying_last"] = spot
                     snap = self._portfolio.mark_to_market(carried)

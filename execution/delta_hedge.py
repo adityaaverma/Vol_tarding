@@ -70,7 +70,7 @@ class DeltaHedgeEngine:
         shares_to_trade=0.0
         reason="WITHIN_THRESHOLD"
 
-        if self.config.mode=='DAILY' or (self.config.mode=='BAND' and self.config.threshold<=abs(portfolio_delta)):
+        if self.config.mode=='DAILY' or (self.config.mode=='BAND' and self.config.threshold<=abs(diff)):
             shares_to_trade=diff
             reason="DAILY_REBALANCE" if self.config.mode=="DAILY" else "BAND_EXCEEDED"
 

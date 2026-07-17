@@ -26,6 +26,7 @@ class VolTradeRules:
         
 
     def apply(self,df:pd.DataFrame)->pd.DataFrame:
+        logger.info("🔧 PATCHED rules.py is running")
         out=df.copy()
         self.validate(out)
         out=out.sort_values('quote_date').reset_index(drop=True)
