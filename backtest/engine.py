@@ -227,6 +227,7 @@ class VolBacktest:
                                 f"not found on {date.date()}. Carrying forward last known contract."
                             )
                             contract_data = self.last_valid_contract.copy()
+                            contract_data["quote_date"] = date
                             contract_data["underlying_last"] = spot
                         
                         # FIX 4: richer fallback — include both legs so
@@ -247,9 +248,11 @@ class VolBacktest:
                                 "c_vega":  0.0,  "p_vega":  0.0,
                                 "c_theta": 0.0,  "p_theta": 0.0,
                                 "underlying_last": spot,
+                                "quote_date": date
                             })
                     if contract_data is not None:
                         contract_data['underlying_last'] = spot
+                        contract_data['quote_date']=date
                         contract_data=self._fill_iv(contract_data)
                         self._portfolio.position.mark_to_market(contract_data)
                     self._portfolio.close_position(contract_data)
@@ -298,6 +301,7 @@ class VolBacktest:
 
                 if contract_data is not None:
                     contract_data["underlying_last"] = spot
+                    contract_data["quote_date"] = date
                     contract_data = self._fill_iv(contract_data)   # carry IV forward if NaN
                     self.last_valid_contract=contract_data.copy()
                     snap = self._portfolio.mark_to_market(contract_data)
@@ -309,13 +313,14 @@ class VolBacktest:
                     logger.info("🔧 PATCHED engine.py carry-forward triggered")
                     carried=self.last_valid_contract.copy()
                     carried["underlying_last"] = spot
+                    carried["quote_date"] = date
                     snap = self._portfolio.mark_to_market(carried)
                 else:
                     logger.warning(f"MTM gap on {date.date()}: no prior data to carry forward.")
-                    snap = self._portfolio.mark_to_market(pd.Series({"underlying_last": spot}))
+                    snap = self._portfolio.mark_to_market(pd.Series({"underlying_last": spot, "quote_date": date}))
             else:
                 snap = self._portfolio.mark_to_market(
-                    pd.Series({"underlying_last": spot})
+                    pd.Series({"underlying_last": spot, "quote_date": date})
                 )
 
             # ── 4. Delta Hedge ────────────────────────────────────────────────

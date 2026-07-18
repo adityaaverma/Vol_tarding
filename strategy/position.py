@@ -51,6 +51,7 @@ class StraddlePosition:
         self.current_spot=self.entry_spot
         self.current_iv=np.nan
         self.unrealized_pnl=0.0
+        self.last_mtm_date=pd.Timestamp(self.entry_date) 
     
     @staticmethod
     def _safe_num(row, key: str, default: float = 0.0) -> float:
@@ -82,10 +83,17 @@ class StraddlePosition:
         ds=new_spot - self.current_spot
         dt=1/252 # assuming daily steps
 
+        new_date = row.get('quote_date', None)
+        if new_date is not None:
+            new_date = pd.Timestamp(new_date)
+            days_elapsed = max((new_date - self.last_mtm_date).days, 1)
+        else:
+            days_elapsed = 1 
         # We calculate attribution to check if our greeks explain price movement 
         delta_chg=self.side * self.delta * ds * self.quantity * LOT_SIZE
         gamma_chg=self.side * 0.5 * self.gamma * (ds**2) * self.quantity * LOT_SIZE
-        theta_chg=self.side * self.theta * self.quantity * LOT_SIZE
+        # theta_chg=self.side * self.theta * self.quantity * LOT_SIZE
+        theta_chg=self.side * self.theta * days_elapsed * self.quantity * LOT_SIZE
        
 
         c_iv = float(row.get('c_iv', np.nan))
@@ -113,6 +121,8 @@ class StraddlePosition:
         self.current_spot=new_spot
         self.unrealized_pnl+=total_pnl_change
         self.current_iv=new_iv
+        if new_date is not None:
+            self.last_mtm_date = new_date   
 
         #Refresh greeks for next bars attibution
         self.delta = self._safe_num(row,'c_delta') + self._safe_num(row,'p_delta')
